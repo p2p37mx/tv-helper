@@ -236,7 +236,7 @@ class MainActivity : Activity() {
 
         val manual = card()
         manual.addView(label("أو اكتب عنوان الشاشة يدوي", 17f, bold = true))
-        manual.addView(label("العنوان مكتوب جوه بواجهة الشاشة (مثال: 192.168.9.105)", 13f, "#777B88"))
+        manual.addView(label("العنوان تلكاه بتطبيق T-Cast تحت اسم الشاشة (مثال: 192.168.9.104)", 13f, "#777B88"))
         manual.addView(gap(10))
         val input = EditText(this).apply {
             hint = "192.168.9.105"

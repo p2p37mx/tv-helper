@@ -5,6 +5,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.PointF
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -12,42 +13,51 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.text.TextUtils
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
+import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.io.File
-import java.net.Inet4Address
-import java.net.NetworkInterface
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.concurrent.thread
 
-/** Our own TV home screen: background photos, clock, and apps in the order chosen from the phone. */
+/**
+ * Our own TV home screen: background photos (cropped around faces), clock,
+ * and an iPhone-style dock of app icons that slides away when the remote is idle.
+ */
 class HomeActivity : Activity() {
+
+    companion object {
+        const val IDLE_MS = 8000L
+    }
 
     private lateinit var root: FrameLayout
     private lateinit var bgA: ImageView
     private lateinit var bgB: ImageView
     private var showingA = true
+    private lateinit var bottomShade: View
     private lateinit var clockBox: LinearLayout
     private lateinit var clock: TextView
     private lateinit var date: TextView
     private lateinit var title: TextView
-    private lateinit var focusLabel: TextView
-    private lateinit var info: TextView
+    private lateinit var dockWrap: FrameLayout
     private lateinit var row: LinearLayout
 
     private val h = Handler(Looper.getMainLooper())
     private var imgIndex = -1
     private var lastImages: List<String> = emptyList()
     private var focusedKey: String? = null
+    private var dockShown = true
 
     private val listener = Runnable { refresh() }
     private val tick = object : Runnable {
@@ -60,6 +70,7 @@ class HomeActivity : Activity() {
             nextImage(); h.postDelayed(this, Store.interval * 1000L)
         }
     }
+    private val idle = Runnable { hideDock() }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -77,6 +88,8 @@ class HomeActivity : Activity() {
         h.post(tick)
         h.removeCallbacks(slide)
         h.post(slide)
+        showDock()
+        wake()
     }
 
     override fun onPause() {
@@ -85,66 +98,78 @@ class HomeActivity : Activity() {
         super.onPause()
     }
 
+    // ------------------------------------------------------------ layout
+
     private fun buildUi() {
         root = FrameLayout(this)
         root.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
             intArrayOf(Color.parseColor("#141824"), Color.parseColor("#2A1830"), Color.parseColor("#3B1E22"))
         )
-        val match = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
-        bgA = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0f }
-        bgB = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0f }
-        root.addView(bgA, match)
-        root.addView(bgB, FrameLayout.LayoutParams(match))
+        bgA = ImageView(this).apply { scaleType = ImageView.ScaleType.MATRIX; alpha = 0f }
+        bgB = ImageView(this).apply { scaleType = ImageView.ScaleType.MATRIX; alpha = 0f }
+        root.addView(bgA, FrameLayout.LayoutParams(-1, -1))
+        root.addView(bgB, FrameLayout.LayoutParams(-1, -1))
 
-        // dark fades so text stays readable on any photo
-        val bottomShade = View(this).apply {
+        bottomShade = View(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.BOTTOM_TOP,
-                intArrayOf(Color.parseColor("#E6000000"), Color.parseColor("#66000000"), Color.TRANSPARENT)
+                intArrayOf(Color.parseColor("#B3000000"), Color.parseColor("#33000000"), Color.TRANSPARENT)
             )
         }
-        root.addView(bottomShade, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(380), Gravity.BOTTOM))
+        root.addView(bottomShade, FrameLayout.LayoutParams(-1, dp(260), Gravity.BOTTOM))
         val topShade = View(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#99000000"), Color.TRANSPARENT)
+                intArrayOf(Color.parseColor("#80000000"), Color.TRANSPARENT)
             )
         }
-        root.addView(topShade, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(200), Gravity.TOP))
+        root.addView(topShade, FrameLayout.LayoutParams(-1, dp(180), Gravity.TOP))
 
         clockBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        clock = text(64f, true)
-        date = text(20f, false).apply { alpha = 0.85f }
+        clock = text(60f, true)
+        date = text(19f, false).apply { alpha = 0.85f }
         clockBox.addView(clock)
         clockBox.addView(date)
         root.addView(clockBox, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
-            setMargins(dp(56), dp(36), dp(56), 0)
+            setMargins(dp(56), dp(32), dp(56), 0)
         })
 
-        title = text(34f, true).apply { gravity = Gravity.CENTER }
+        title = text(32f, true).apply { gravity = Gravity.CENTER }
         root.addView(title, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-            topMargin = dp(52)
+            topMargin = dp(48)
         })
 
-        val bottom = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        focusLabel = text(24f, true).apply { setPadding(dp(58), 0, dp(58), 0) }
-        bottom.addView(focusLabel)
-
+        // The dock: frosted rounded bar at the bottom, like an iPhone
+        dockWrap = FrameLayout(this).apply {
+            clipChildren = false
+            clipToPadding = false
+        }
         val scroller = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
+            isFillViewport = false
+            clipChildren = false
             clipToPadding = false
-            setPadding(dp(46), 0, dp(46), 0)
+            setPadding(dp(14), dp(12), dp(14), dp(8))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(30).toFloat()
+                setColor(Color.parseColor("#4D101418"))
+                setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+            }
         }
-        row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            clipChildren = false
+            clipToPadding = false
+        }
         scroller.addView(row)
-        bottom.addView(scroller)
+        dockWrap.addView(scroller, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL))
+        root.addView(dockWrap, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
+            setMargins(dp(48), 0, dp(48), dp(28))
+        })
 
-        info = text(13f, false).apply { alpha = 0.7f; setPadding(dp(58), dp(4), dp(58), dp(18)) }
-        bottom.addView(info)
-
-        root.addView(bottom, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, -2, Gravity.BOTTOM))
+        root.clipChildren = false
         setContentView(root)
     }
 
@@ -161,12 +186,6 @@ class HomeActivity : Activity() {
         clockBox.visibility = if (Store.showClock) View.VISIBLE else View.GONE
         updateClock()
         buildRow()
-        val ip = localIp()
-        val acc = RemoteAccessibilityService.instance != null
-        info.text = buildString {
-            append("عنوان الشاشة: ").append(ip ?: "غير متصل").append(":").append(ServerService.PORT)
-            if (!acc) append("   •   حتى تثبت هالواجهة وزر الرئيسية يرجعلها: فعّل «مساعد الشاشة - الريموت» من الإعدادات ← تفضيلات الجهاز ← إمكانية الوصول")
-        }
         val names = Store.images().map { it.name }
         if (names != lastImages) {
             lastImages = names
@@ -186,29 +205,124 @@ class HomeActivity : Activity() {
         date.text = SimpleDateFormat("EEEE، d MMMM", Locale("ar")).format(now)
     }
 
+    // ------------------------------------------------------------ dock
+
     private fun buildRow() {
         row.removeAllViews()
         var toFocus: View? = null
         for (app in AppsRepo.visible(this)) {
-            val banner = AppsRepo.banner(this, app.activity)
-            val v = tile(app.pkg, app.label, banner, if (banner == null) AppsRepo.icon(this, app.activity) else null) {
+            val v = tile(app.pkg, app.label, AppsRepo.icon(this, app.activity), null) {
                 AppsRepo.launch(this, app.pkg)
             }
             row.addView(v)
             if (app.pkg == focusedKey) toFocus = v
         }
-        row.addView(tile("#photos", "صوري", null, getDrawable(android.R.drawable.ic_menu_gallery)) {
+        row.addView(tile("#photos", "صوري", null, android.R.drawable.ic_menu_gallery) {
             if (Store.images().isNotEmpty()) {
                 startActivity(Intent(this, ViewerActivity::class.java).putExtra("slideshow", true))
             }
         })
-        row.addView(tile("#original", "الواجهة الأصلية", null, getDrawable(android.R.drawable.ic_menu_revert)) {
+        row.addView(tile("#original", "الأصلية", null, android.R.drawable.ic_menu_revert) {
             openOriginalHome()
         })
-        row.addView(tile("#settings", "إعدادات الشاشة", null, getDrawable(android.R.drawable.ic_menu_preferences)) {
+        row.addView(tile("#settings", "الإعدادات", null, android.R.drawable.ic_menu_preferences) {
             try { startActivity(Intent(Settings.ACTION_SETTINGS)) } catch (_: Exception) {}
         })
         (toFocus ?: row.getChildAt(0))?.requestFocus()
+    }
+
+    /** One app: a rounded-square icon with its name under it. [sysIcon] draws a white glyph on a coloured square. */
+    private fun tile(key: String, label: String, icon: Drawable?, sysIcon: Int?, onClick: () -> Unit): View {
+        val size = dp(64)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            isFocusable = true
+            isClickable = true
+            clipChildren = false
+            setPadding(dp(6), dp(4), dp(6), dp(4))
+            layoutParams = LinearLayout.LayoutParams(dp(92), -2)
+        }
+        val iconView = ImageView(this).apply {
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(v: View, o: android.graphics.Outline) {
+                    o.setRoundRect(0, 0, v.width, v.height, dp(16).toFloat())
+                }
+            }
+            clipToOutline = true
+            elevation = dp(3).toFloat()
+            if (sysIcon != null) {
+                setImageResource(sysIcon)
+                setColorFilter(Color.WHITE)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(dp(14), dp(14), dp(14), dp(14))
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TL_BR,
+                    intArrayOf(Color.parseColor("#FF5A4F"), Color.parseColor("#FF8A5B"))
+                )
+            } else {
+                setImageDrawable(icon)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }
+        }
+        box.addView(iconView, LinearLayout.LayoutParams(size, size))
+        val name = text(12f, false).apply {
+            text = label
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER
+            alpha = 0.85f
+            setPadding(0, dp(6), 0, 0)
+        }
+        box.addView(name, LinearLayout.LayoutParams(-1, -2))
+
+        box.setOnFocusChangeListener { _, has ->
+            iconView.animate().scaleX(if (has) 1.18f else 1f).scaleY(if (has) 1.18f else 1f)
+                .translationY(if (has) -dp(4).toFloat() else 0f).setDuration(160).start()
+            iconView.elevation = dp(if (has) 12 else 3).toFloat()
+            name.alpha = if (has) 1f else 0.75f
+            name.typeface = if (has) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            if (has) {
+                focusedKey = key
+                wake() // focus moved (also when moved from the phone)
+            }
+        }
+        box.setOnClickListener { onClick() }
+        return box
+    }
+
+    private fun wake() {
+        h.removeCallbacks(idle)
+        h.postDelayed(idle, IDLE_MS)
+        if (!dockShown) showDock()
+    }
+
+    private fun showDock() {
+        dockShown = true
+        dockWrap.animate().translationY(0f).alpha(1f).setDuration(350)
+            .setInterpolator(DecelerateInterpolator()).start()
+        bottomShade.animate().alpha(1f).setDuration(350).start()
+        if (row.findFocus() == null) row.getChildAt(0)?.requestFocus()
+    }
+
+    private fun hideDock() {
+        dockShown = false
+        val dist = (dockWrap.height + dp(60)).toFloat()
+        dockWrap.animate().translationY(dist).alpha(0f).setDuration(600)
+            .setInterpolator(DecelerateInterpolator()).start()
+        bottomShade.animate().alpha(0f).setDuration(600).start()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val k = event.keyCode
+        val isVolume = k == KeyEvent.KEYCODE_VOLUME_UP || k == KeyEvent.KEYCODE_VOLUME_DOWN || k == KeyEvent.KEYCODE_VOLUME_MUTE
+        if (!isVolume && event.action == KeyEvent.ACTION_DOWN) {
+            val wasHidden = !dockShown
+            wake()
+            // the first press only brings the dock back, it doesn't open anything
+            if (wasHidden && k != KeyEvent.KEYCODE_BACK) return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     /** Opens the TV's original home screen without bouncing back to ours. */
@@ -224,52 +338,7 @@ class HomeActivity : Activity() {
         try { startActivity(i) } catch (_: Exception) { Store.bypassOriginal = false }
     }
 
-    private fun tileBg(focused: Boolean) = GradientDrawable().apply {
-        cornerRadius = dp(14).toFloat()
-        setColor(if (focused) Color.parseColor("#55FFFFFF") else Color.parseColor("#33FFFFFF"))
-        setStroke(dp(3), if (focused) Color.WHITE else Color.TRANSPARENT)
-    }
-
-    private fun tile(key: String, label: String, banner: Drawable?, icon: Drawable?, onClick: () -> Unit): View {
-        val box = FrameLayout(this).apply {
-            isFocusable = true
-            isClickable = true
-            background = tileBg(false)
-            outlineProvider = ViewOutlineProvider.BACKGROUND
-            clipToOutline = true
-            layoutParams = LinearLayout.LayoutParams(dp(208), dp(117)).apply { setMargins(dp(10), dp(16), dp(10), dp(16)) }
-        }
-        if (banner != null) {
-            box.addView(ImageView(this).apply {
-                setImageDrawable(banner)
-                scaleType = ImageView.ScaleType.CENTER_CROP
-            }, FrameLayout.LayoutParams(-1, -1))
-        } else {
-            val inner = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-            }
-            inner.addView(ImageView(this).apply { setImageDrawable(icon) }, LinearLayout.LayoutParams(dp(56), dp(56)))
-            inner.addView(text(14f, false).apply {
-                text = label
-                maxLines = 1
-                gravity = Gravity.CENTER
-                setPadding(dp(6), dp(6), dp(6), 0)
-            })
-            box.addView(inner, FrameLayout.LayoutParams(-1, -1))
-        }
-        box.setOnFocusChangeListener { v, has ->
-            v.background = tileBg(has)
-            v.animate().scaleX(if (has) 1.12f else 1f).scaleY(if (has) 1.12f else 1f).setDuration(150).start()
-            v.translationZ = if (has) dp(8).toFloat() else 0f
-            if (has) {
-                focusedKey = key
-                focusLabel.text = label
-            }
-        }
-        box.setOnClickListener { onClick() }
-        return box
-    }
+    // ------------------------------------------------------------ background photos
 
     private fun nextImage() {
         val files = Store.images()
@@ -279,15 +348,19 @@ class HomeActivity : Activity() {
         val w = resources.displayMetrics.widthPixels.coerceAtLeast(1280)
         thread {
             val bmp = decodeScaled(f, w) ?: return@thread
-            runOnUiThread { showBg(bmp) }
+            val focus = FaceCrop.focus(bmp)
+            runOnUiThread { showBg(bmp, focus) }
         }
     }
 
-    private fun showBg(bmp: Bitmap) {
+    private fun showBg(bmp: Bitmap, focus: PointF) {
         val inV = if (showingA) bgB else bgA
         val outV = if (showingA) bgA else bgB
         showingA = !showingA
+        val vw = root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+        val vh = root.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
         inV.setImageBitmap(bmp)
+        inV.imageMatrix = FaceCrop.matrix(bmp.width, bmp.height, vw, vh, focus)
         inV.alpha = 0f
         inV.animate().alpha(1f).setDuration(1200).start()
         outV.animate().alpha(0f).setDuration(1200).start()
@@ -300,16 +373,6 @@ class HomeActivity : Activity() {
         while (o.outWidth / (s * 2) >= maxW) s *= 2
         BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = s })
     } catch (e: Throwable) {
-        null
-    }
-
-    private fun localIp(): String? = try {
-        NetworkInterface.getNetworkInterfaces().toList()
-            .filter { it.isUp && !it.isLoopback }
-            .flatMap { it.inetAddresses.toList() }
-            .firstOrNull { it is Inet4Address && !it.isLoopbackAddress }
-            ?.hostAddress
-    } catch (e: Exception) {
         null
     }
 }
