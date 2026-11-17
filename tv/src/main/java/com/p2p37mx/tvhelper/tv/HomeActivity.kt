@@ -162,6 +162,8 @@ class HomeActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             clipChildren = false
             clipToPadding = false
+            // room above the icons so the focused (bigger) one isn't cut off
+            setPadding(0, dp(12), 0, dp(2))
         }
         scroller.addView(row)
         dockWrap.addView(scroller, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL))
@@ -277,8 +279,8 @@ class HomeActivity : Activity() {
         box.addView(name, LinearLayout.LayoutParams(-1, -2))
 
         box.setOnFocusChangeListener { _, has ->
-            iconView.animate().scaleX(if (has) 1.18f else 1f).scaleY(if (has) 1.18f else 1f)
-                .translationY(if (has) -dp(4).toFloat() else 0f).setDuration(160).start()
+            iconView.animate().scaleX(if (has) 1.15f else 1f).scaleY(if (has) 1.15f else 1f)
+                .setDuration(160).start()
             iconView.elevation = dp(if (has) 12 else 3).toFloat()
             name.alpha = if (has) 1f else 0.75f
             name.typeface = if (has) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
