@@ -165,7 +165,7 @@ class HomeActivity : Activity() {
         val acc = RemoteAccessibilityService.instance != null
         info.text = buildString {
             append("عنوان الشاشة: ").append(ip ?: "غير متصل").append(":").append(ServerService.PORT)
-            if (!acc) append("   •   للريموت فعّل «مساعد الشاشة - الريموت» من الإعدادات ← إمكانية الوصول")
+            if (!acc) append("   •   حتى تثبت هالواجهة وزر الرئيسية يرجعلها: فعّل «مساعد الشاشة - الريموت» من الإعدادات ← تفضيلات الجهاز ← إمكانية الوصول")
         }
         val names = Store.images().map { it.name }
         if (names != lastImages) {
@@ -202,10 +202,26 @@ class HomeActivity : Activity() {
                 startActivity(Intent(this, ViewerActivity::class.java).putExtra("slideshow", true))
             }
         })
+        row.addView(tile("#original", "الواجهة الأصلية", null, getDrawable(android.R.drawable.ic_menu_revert)) {
+            openOriginalHome()
+        })
         row.addView(tile("#settings", "إعدادات الشاشة", null, getDrawable(android.R.drawable.ic_menu_preferences)) {
             try { startActivity(Intent(Settings.ACTION_SETTINGS)) } catch (_: Exception) {}
         })
         (toFocus ?: row.getChildAt(0))?.requestFocus()
+    }
+
+    /** Opens the TV's original home screen without bouncing back to ours. */
+    private fun openOriginalHome() {
+        val pkg = RemoteAccessibilityService.instance?.originalHomePackage() ?: run {
+            val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+            packageManager.queryIntentActivities(i, 0).map { it.activityInfo.packageName }
+                .firstOrNull { it != packageName && it != "android" && !it.contains("settings") }
+        } ?: return
+        val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(pkg)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        Store.bypassOriginal = true
+        try { startActivity(i) } catch (_: Exception) { Store.bypassOriginal = false }
     }
 
     private fun tileBg(focused: Boolean) = GradientDrawable().apply {

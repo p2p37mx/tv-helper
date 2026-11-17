@@ -620,12 +620,18 @@ class MainActivity : Activity() {
         box.addView(gap(8))
         val clock = Switch(this).apply { text = "إظهار الساعة والتاريخ"; textSize = 15f }
         box.addView(clock)
+        box.addView(gap(10))
+        val home = Switch(this).apply { text = "واجهتي هي الأساسية (بعد التشغيل وزر الرئيسية)"; textSize = 15f }
+        box.addView(home)
+        val homeNote = label("", 12f, "#C0392B")
+        box.addView(homeNote)
         box.addView(gap(12))
         box.addView(button("💾  حفظ") {
             val o = JSONObject()
                 .put("title", title.text.toString())
                 .put("interval", interval.text.toString().toIntOrNull() ?: 15)
                 .put("clock", clock.isChecked)
+                .put("home", home.isChecked)
             Net.async({ Net.postJson("/settings", o) }) { _, e ->
                 toast(if (e == null) "✅ انحفظ" else "ما انحفظ، تأكد من الاتصال")
             }
@@ -638,9 +644,9 @@ class MainActivity : Activity() {
         help.addView(gap(6))
         help.addView(
             label(
-                "• «واجهتي» تنفتح من زر ★ بالريموت أو من تطبيق «مساعد الشاشة» بالشاشة.\n" +
-                    "• الواجهة الأصلية مال الشاشة باقية مثل ما هي، وزر الرئيسية بالريموت يرجعك إلها.\n" +
-                    "• إذا الشاشة سألتك تختار واجهة رئيسية، تكدر تختار «مساعد الشاشة» أو تبقى على الأصلية.",
+                "• من يكون «واجهتي هي الأساسية» شغّال: الشاشة تفتح على واجهتك بعد التشغيل، وزر الرئيسية بالريموت يرجعك إلها.\n" +
+                    "• الواجهة الأصلية مال الشاشة باقية: تفتحها من مربع «الواجهة الأصلية» بآخر صف التطبيقات.\n" +
+                    "• تريد ترجع مثل قبل؟ طفّي المفتاح واحفظ، وكلشي يرجع للأصلية.",
                 14f
             )
         )
@@ -651,6 +657,9 @@ class MainActivity : Activity() {
             title.setText(s.optString("title"))
             interval.setText(s.optInt("interval", 15).toString())
             clock.isChecked = s.optBoolean("clock", true)
+            home.isChecked = s.optBoolean("home", true)
+            homeNote.text = if (s.optBoolean("remote", true)) "" else
+                "⚠️ هاي تحتاج تفعيل «مساعد الشاشة - الريموت» من إمكانية الوصول بالشاشة"
         }
     }
 }

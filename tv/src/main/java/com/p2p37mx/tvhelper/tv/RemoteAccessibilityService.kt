@@ -3,6 +3,9 @@ package com.p2p37mx.tvhelper.tv
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.view.KeyEvent
 import android.view.View
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -18,10 +21,52 @@ class RemoteAccessibilityService : AccessibilityService() {
         var instance: RemoteAccessibilityService? = null
     }
 
+    private val h = Handler(Looper.getMainLooper())
+    private var homePkgs: Set<String> = emptySet()
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        Store.init(this)
         ServerService.start(this)
+        homePkgs = findHomePackages()
+        // After power on the original home screen is usually already showing: replace it.
+        h.postDelayed({
+            val fg = rootInActiveWindow?.packageName?.toString()
+            if (Store.homeMode && fg != null && fg in homePkgs) openOurHome()
+        }, 1500)
+    }
+
+    /** The TV's original home screen apps (TCL launcher etc.), not ours. */
+    private fun findHomePackages(): Set<String> {
+        val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        return packageManager.queryIntentActivities(i, 0)
+            .map { it.activityInfo.packageName }
+            .filter {
+                it != packageName && it != "android" && !it.contains("settings") &&
+                    !it.contains("setupwizard") && !it.contains("provision")
+            }
+            .toSet()
+    }
+
+    fun originalHomePackage(): String? {
+        if (homePkgs.isEmpty()) homePkgs = findHomePackages()
+        return homePkgs.firstOrNull()
+    }
+
+    fun openOurHome(): Boolean {
+        val i = Intent(this, HomeActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        return try { startActivity(i); true } catch (e: Exception) { false }
+    }
+
+    override fun onKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode != KeyEvent.KEYCODE_HOME || !Store.homeMode) return false
+        if (event.action == KeyEvent.ACTION_UP) {
+            Store.bypassOriginal = false
+            openOurHome()
+        }
+        return true
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -34,12 +79,23 @@ class RemoteAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        val pkg = event.packageName?.toString() ?: return
+        if (pkg == packageName || pkg == "com.android.systemui") return
+        if (homePkgs.isEmpty()) homePkgs = findHomePackages()
+        if (pkg in homePkgs) {
+            if (Store.homeMode && !Store.bypassOriginal) openOurHome()
+        } else {
+            // the user went into some app: next time Home goes back to our screen
+            Store.bypassOriginal = false
+        }
+    }
     override fun onInterrupt() {}
 
     fun handle(k: String): Boolean = when (k) {
         "back" -> performGlobalAction(GLOBAL_ACTION_BACK)
-        "home" -> performGlobalAction(GLOBAL_ACTION_HOME)
+        "home" -> if (Store.homeMode) openOurHome() else performGlobalAction(GLOBAL_ACTION_HOME)
         "recents" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
         "notifications" -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
         "up" -> move(View.FOCUS_UP, 16)

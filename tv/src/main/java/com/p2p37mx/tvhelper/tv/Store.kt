@@ -41,6 +41,15 @@ object Store {
         get() = prefs.getBoolean("clock", true)
         set(v) = prefs.edit().putBoolean("clock", v).apply()
 
+    /** When on, our home screen replaces the TV's original one (Home button + after power on). */
+    var homeMode: Boolean
+        get() = prefs.getBoolean("homeMode", true)
+        set(v) = prefs.edit().putBoolean("homeMode", v).apply()
+
+    /** Set when the user deliberately opens the original home screen from ours. */
+    @Volatile
+    var bypassOriginal = false
+
     val imagesDir: File
         get() = File(ctx.filesDir, "images").apply { mkdirs() }
 
