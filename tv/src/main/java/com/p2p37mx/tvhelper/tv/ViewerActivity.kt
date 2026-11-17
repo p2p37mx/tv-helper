@@ -19,7 +19,9 @@ class ViewerActivity : Activity() {
     private val h = Handler(Looper.getMainLooper())
     private val auto = object : Runnable {
         override fun run() {
-            step(1); h.postDelayed(this, Store.interval * 1000L)
+            val files = Store.images()
+            Shuffle.next(files)?.let { f -> index = files.indexOf(f); show() }
+            h.postDelayed(this, Store.interval * 1000L)
         }
     }
 

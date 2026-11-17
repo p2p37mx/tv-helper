@@ -52,7 +52,7 @@ object FaceCrop {
         val bw = bmp.width
         val bh = bmp.height
         val aspect = bw.toFloat() / bh
-        val fill = !fitAlways && (aspect >= 1.6f || aspect < 1f)
+        val fill = !fitAlways && aspect < 1f // only tall photos get cropped
         if (fill) {
             cv.drawBitmap(bmp, matrix(bw, bh, vw, vh, focus(name, bw, bh)), paint)
             return out

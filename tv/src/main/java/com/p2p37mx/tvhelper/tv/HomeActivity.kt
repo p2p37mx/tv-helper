@@ -53,7 +53,6 @@ class HomeActivity : Activity() {
     private lateinit var row: LinearLayout
 
     private val h = Handler(Looper.getMainLooper())
-    private var imgIndex = -1
     private var lastImages: List<String> = emptyList()
     private var focusedKey: String? = null
     private var dockShown = true
@@ -162,7 +161,7 @@ class HomeActivity : Activity() {
             clipChildren = false
             clipToPadding = false
             // room above the icons so the focused (bigger) one isn't cut off
-            setPadding(0, dp(12), 0, dp(2))
+            setPadding(0, dp(18), 0, dp(4))
         }
         scroller.addView(row)
         dockWrap.addView(scroller, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL))
@@ -251,7 +250,6 @@ class HomeActivity : Activity() {
                 }
             }
             clipToOutline = true
-            elevation = dp(3).toFloat()
             if (sysIcon != null) {
                 setImageResource(sysIcon)
                 setColorFilter(Color.WHITE)
@@ -266,7 +264,13 @@ class HomeActivity : Activity() {
                 scaleType = ImageView.ScaleType.FIT_CENTER
             }
         }
-        box.addView(iconView, LinearLayout.LayoutParams(size, size))
+        // white ring around the focused icon (instead of a big zoom that could get cut off)
+        val ring = FrameLayout(this).apply {
+            setPadding(dp(3), dp(3), dp(3), dp(3))
+            clipChildren = false
+        }
+        ring.addView(iconView, FrameLayout.LayoutParams(size, size))
+        box.addView(ring, LinearLayout.LayoutParams(-2, -2))
         val name = text(12f, false).apply {
             text = label
             maxLines = 1
@@ -278,9 +282,12 @@ class HomeActivity : Activity() {
         box.addView(name, LinearLayout.LayoutParams(-1, -2))
 
         box.setOnFocusChangeListener { _, has ->
-            iconView.animate().scaleX(if (has) 1.15f else 1f).scaleY(if (has) 1.15f else 1f)
+            ring.background = if (has) GradientDrawable().apply {
+                cornerRadius = dp(19).toFloat()
+                setStroke(dp(3), Color.WHITE)
+            } else null
+            ring.animate().scaleX(if (has) 1.08f else 1f).scaleY(if (has) 1.08f else 1f)
                 .setDuration(160).start()
-            iconView.elevation = dp(if (has) 12 else 3).toFloat()
             name.alpha = if (has) 1f else 0.75f
             name.typeface = if (has) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             if (has) {
@@ -344,8 +351,7 @@ class HomeActivity : Activity() {
     private fun nextImage() {
         val files = Store.images()
         if (files.isEmpty()) return
-        imgIndex = (imgIndex + 1) % files.size
-        val f = files[imgIndex]
+        val f = Shuffle.next(files) ?: return
         val w = resources.displayMetrics.widthPixels.coerceAtLeast(1280)
         thread {
             try {
