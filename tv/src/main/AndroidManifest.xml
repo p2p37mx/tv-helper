@@ -54,6 +54,14 @@
         </activity>
 
         <activity
+            android:name=".SaverActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:screenOrientation="landscape"
+            android:taskAffinity="com.p2p37mx.tvhelper.saver" />
+
+        <activity
             android:name=".ViewerActivity"
             android:exported="false"
             android:launchMode="singleTop"

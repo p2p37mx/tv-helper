@@ -742,16 +742,29 @@ class MainActivity : Activity() {
                 .let { BitmapFactory.decodeByteArray(it, 0, it.size) }
         }) { b, _ -> if (b != null) preview.setPhoto(b) }
 
-        // ---- screensaver
+        // ---- screensaver (our own: shows after some minutes without the remote)
         val dream = card()
-        dream.addView(label("شاشة الاستراحة (التوقف)", 17f, bold = true))
+        dream.addView(label("شاشة الاستراحة", 17f, bold = true))
         dream.addView(gap(6))
-        dream.addView(label("حتى بدل شاشة الاستراحة الحالية تطلع صورك وهي تتقلب، ويه الساعة والطقس والأدعية:\n" +
-            "1. اضغط الزر تحت، تنفتح إعدادات شاشة التوقف بالشاشة.\n" +
-            "2. اختار «شاشة التوقف» ← «صور مساعد الشاشة».\n" +
-            "3. إذا ما لكيت الزر يفتحها، روح يدوي: الإعدادات ← تفضيلات الجهاز ← شاشة التوقف.", 14f))
+        dream.addView(label("إذا ما استعملت الريموت هالمدة وما اكو شي يشتغل بصوت (فيديو أو أغاني)، تطلع صورك وهي تتقلب ويه الساعة والطقس والأدعية. أي زر بالريموت يرجعك وين ما چنت.", 14f))
+        dream.addView(gap(8))
+        dream.addView(label("بعد كم دقيقة؟ (0 = مطفية)", 13f, "#777B88"))
+        val saverMin = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; hint = "5" }
+        dream.addView(saverMin)
+        dream.addView(gap(8))
+        val dreamRow = LinearLayout(this)
+        dreamRow.addView(button("💾 حفظ", CORAL, "#FFFFFF", 14f) {
+            val m = saverMin.text.toString().toIntOrNull() ?: 5
+            Net.async({ Net.postJson("/settings", JSONObject().put("saver", m)) }) { _, e ->
+                toast(if (e == null) (if (m == 0) "✅ انطفت" else "✅ تطلع بعد $m دقيقة") else "ما انحفظ")
+            }
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        dreamRow.addView(button("▶ جرّبها هسه", "#FFF1EF", CORAL, 14f) {
+            Net.async({ Net.get("/saver") }) { _, e -> if (e != null) toast("ما گدرت أوصل للشاشة") }
+        }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(10) })
+        dream.addView(dreamRow)
         dream.addView(gap(10))
-        dream.addView(button("افتح إعدادات شاشة التوقف بالشاشة", "#FFF1EF", CORAL, 15f) { sendKey("dreamsettings") })
+        dream.addView(label("مهم: شاشة الاستراحة مال Google (المعرض الفني) لازم تكون أبطأ من مالتنا، حتى ما تسبقها. بالشاشة روح: الإعدادات ← النظام ← التشغيل والطاقة، وخلي وقت بدء شاشة الاستراحة أطول (مثلاً 30 دقيقة) أو أبداً.", 13f, "#8A5300"))
         col.addView(dream)
         col.addView(gap(16))
 
@@ -788,6 +801,7 @@ class MainActivity : Activity() {
             interval.setText(s.optInt("interval", 15).toString())
             clock.isChecked = s.optBoolean("clock", true)
             date.isChecked = s.optBoolean("date", true)
+            saverMin.setText(s.optInt("saver", 5).toString())
             s.optJSONObject("sizes")?.let { sz ->
                 sizes.keys.forEach { k -> bars[k]?.progress = sz.optInt(k, 100) - 40 }
             }

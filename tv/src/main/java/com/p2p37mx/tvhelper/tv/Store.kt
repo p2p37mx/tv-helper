@@ -63,6 +63,15 @@ object Store {
     fun size(key: String): Int = prefs.getInt("size_$key", 100).coerceIn(40, 250)
     fun setSize(key: String, v: Int) = prefs.edit().putInt("size_$key", v.coerceIn(40, 250)).apply()
 
+    /** Our own screensaver: minutes without using the remote before photos show (0 = off). */
+    var saverMinutes: Int
+        get() = prefs.getInt("saver", 5)
+        set(v) = prefs.edit().putInt("saver", v.coerceIn(0, 240)).apply()
+
+    /** Last time the remote (or phone) was used. */
+    @Volatile
+    var lastActivity = System.currentTimeMillis()
+
     var showWeather: Boolean
         get() = prefs.getBoolean("weather", true)
         set(v) = prefs.edit().putBoolean("weather", v).apply()

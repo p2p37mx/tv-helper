@@ -30,11 +30,32 @@ class RemoteAccessibilityService : AccessibilityService() {
         Store.init(this)
         ServerService.start(this)
         homePkgs = findHomePackages()
+        h.removeCallbacks(saverCheck)
+        h.postDelayed(saverCheck, 20000)
         // After power on the original home screen is usually already showing: replace it.
         h.postDelayed({
             val fg = rootInActiveWindow?.packageName?.toString()
             if (Store.homeMode && fg != null && fg in homePkgs) openOurHome()
         }, 1500)
+    }
+
+    /** Our own screensaver: photos after some minutes without the remote, unless sound is playing. */
+    private val saverCheck: Runnable = object : Runnable {
+        override fun run() {
+            try { maybeStartSaver() } catch (_: Exception) {}
+            h.postDelayed(this, 20000)
+        }
+    }
+
+    private fun maybeStartSaver() {
+        val mins = Store.saverMinutes
+        if (mins <= 0 || SaverActivity.showing) return
+        if (System.currentTimeMillis() - Store.lastActivity < mins * 60_000L) return
+        val pm = getSystemService(android.os.PowerManager::class.java)
+        if (pm != null && !pm.isInteractive) return
+        val am = getSystemService(android.media.AudioManager::class.java)
+        if (am != null && am.isMusicActive) return // something is playing (video, music)
+        startActivity(Intent(this, SaverActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private val checkHome = Runnable {
@@ -68,6 +89,7 @@ class RemoteAccessibilityService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        Store.lastActivity = System.currentTimeMillis()
         if (event.keyCode != KeyEvent.KEYCODE_HOME || !Store.homeMode) return false
         if (event.action == KeyEvent.ACTION_UP) {
             Store.bypassOriginal = false
@@ -89,6 +111,7 @@ class RemoteAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
+        if (pkg != packageName) Store.lastActivity = System.currentTimeMillis()
         if (pkg == packageName || pkg == "com.android.systemui") return
         if (homePkgs.isEmpty()) homePkgs = findHomePackages()
         if (pkg in homePkgs) {

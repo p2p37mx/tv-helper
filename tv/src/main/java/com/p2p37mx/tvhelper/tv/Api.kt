@@ -97,7 +97,9 @@ object Api {
                 ok(start(launchCtx(ctx), i))
             }
 
-            "/key" -> ok(Remote.key(ctx, r.q("k")))
+            "/key" -> { Store.lastActivity = System.currentTimeMillis(); ok(Remote.key(ctx, r.q("k"))) }
+
+            "/saver" -> ok(start(launchCtx(ctx), Intent(ctx, SaverActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
 
             "/crash" -> {
                 val f = File(ctx.filesDir, "crash.txt")
@@ -115,6 +117,7 @@ object Api {
                     if (o.has("weather")) Store.showWeather = o.getBoolean("weather")
                     if (o.has("dua")) Store.showDua = o.getBoolean("dua")
                     if (o.has("date")) Store.showDate = o.getBoolean("date")
+                    if (o.has("saver")) Store.saverMinutes = o.getInt("saver")
                     o.optJSONObject("sizes")?.let { sz ->
                         Store.sizeKeys.forEach { k -> if (sz.has(k)) Store.setSize(k, sz.getInt(k)) }
                     }
@@ -129,6 +132,7 @@ object Api {
                         .put("weather", Store.showWeather)
                         .put("dua", Store.showDua)
                         .put("date", Store.showDate)
+                        .put("saver", Store.saverMinutes)
                         .put("sizes", JSONObject().also { sz -> Store.sizeKeys.forEach { k -> sz.put(k, Store.size(k)) } })
                         .put("remote", RemoteAccessibilityService.instance != null)
                 )
