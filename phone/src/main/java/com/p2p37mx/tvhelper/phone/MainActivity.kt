@@ -649,6 +649,12 @@ class MainActivity : Activity() {
         box.addView(gap(8))
         val clock = Switch(this).apply { text = "إظهار الساعة والتاريخ"; textSize = 15f }
         box.addView(clock)
+        box.addView(gap(8))
+        val weather = Switch(this).apply { text = "إظهار حالة الطقس (الموصل)"; textSize = 15f }
+        box.addView(weather)
+        box.addView(gap(8))
+        val dua = Switch(this).apply { text = "إظهار الأدعية (تتغير ويه كل صورة)"; textSize = 15f }
+        box.addView(dua)
         box.addView(gap(10))
         val home = Switch(this).apply { text = "واجهتي هي الأساسية (بعد التشغيل وزر الرئيسية)"; textSize = 15f }
         box.addView(home)
@@ -661,6 +667,8 @@ class MainActivity : Activity() {
                 .put("interval", interval.text.toString().toIntOrNull() ?: 15)
                 .put("clock", clock.isChecked)
                 .put("home", home.isChecked)
+                .put("weather", weather.isChecked)
+                .put("dua", dua.isChecked)
             Net.async({ Net.postJson("/settings", o) }) { _, e ->
                 toast(if (e == null) "✅ انحفظ" else "ما انحفظ، تأكد من الاتصال")
             }
@@ -701,6 +709,8 @@ class MainActivity : Activity() {
             interval.setText(s.optInt("interval", 15).toString())
             clock.isChecked = s.optBoolean("clock", true)
             home.isChecked = s.optBoolean("home", true)
+            weather.isChecked = s.optBoolean("weather", true)
+            dua.isChecked = s.optBoolean("dua", true)
             homeNote.text = if (s.optBoolean("remote", true)) "" else
                 "⚠️ هاي تحتاج تفعيل «مساعد الشاشة - الريموت» من إمكانية الوصول بالشاشة"
         }

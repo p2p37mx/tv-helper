@@ -112,6 +112,8 @@ object Api {
                     if (o.has("interval")) Store.interval = o.getInt("interval")
                     if (o.has("clock")) Store.showClock = o.getBoolean("clock")
                     if (o.has("home")) Store.homeMode = o.getBoolean("home")
+                    if (o.has("weather")) Store.showWeather = o.getBoolean("weather")
+                    if (o.has("dua")) Store.showDua = o.getBoolean("dua")
                     Store.changed()
                 }
                 json(
@@ -120,6 +122,8 @@ object Api {
                         .put("interval", Store.interval)
                         .put("clock", Store.showClock)
                         .put("home", Store.homeMode)
+                        .put("weather", Store.showWeather)
+                        .put("dua", Store.showDua)
                         .put("remote", RemoteAccessibilityService.instance != null)
                 )
             }

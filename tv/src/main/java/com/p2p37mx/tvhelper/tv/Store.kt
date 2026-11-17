@@ -54,6 +54,14 @@ object Store {
     @Volatile
     var suppressUntil = 0L
 
+    var showWeather: Boolean
+        get() = prefs.getBoolean("weather", true)
+        set(v) = prefs.edit().putBoolean("weather", v).apply()
+
+    var showDua: Boolean
+        get() = prefs.getBoolean("dua", true)
+        set(v) = prefs.edit().putBoolean("dua", v).apply()
+
     val imagesDir: File
         get() = File(ctx.filesDir, "images").apply { mkdirs() }
 

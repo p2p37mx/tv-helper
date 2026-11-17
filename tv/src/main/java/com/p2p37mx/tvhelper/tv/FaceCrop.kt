@@ -40,23 +40,17 @@ object FaceCrop {
     }
 
     /**
-     * Lays a photo out on a screen-sized picture:
-     *  - wide photos (about 16:9): fill the screen
-     *  - other landscape photos (4:3 …) and [fitAlways]: the whole photo over a blurred copy of itself
-     *  - tall photos: fill the screen, cropped around the faces
+     * Lays a photo out on a screen-sized picture: the whole photo as it is (wide or tall),
+     * and any empty space at the sides filled with a blurred copy of the same photo.
      */
-    fun compose(bmp: Bitmap, name: String, vw: Int, vh: Int, fitAlways: Boolean = false): Bitmap {
+    fun compose(bmp: Bitmap, @Suppress("UNUSED_PARAMETER") name: String, vw: Int, vh: Int,
+                @Suppress("UNUSED_PARAMETER") fitAlways: Boolean = true): Bitmap {
         val out = Bitmap.createBitmap(vw, vh, Bitmap.Config.ARGB_8888)
         val cv = Canvas(out)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
         val bw = bmp.width
         val bh = bmp.height
         val aspect = bw.toFloat() / bh
-        val fill = !fitAlways && aspect < 1f // only tall photos get cropped
-        if (fill) {
-            cv.drawBitmap(bmp, matrix(bw, bh, vw, vh, focus(name, bw, bh)), paint)
-            return out
-        }
         // blurred background: shrink a lot, then stretch back up
         val sw = 32
         val sh = (32 / aspect).toInt().coerceAtLeast(1)

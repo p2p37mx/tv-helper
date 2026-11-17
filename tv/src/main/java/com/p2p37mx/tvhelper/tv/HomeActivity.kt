@@ -46,6 +46,10 @@ class HomeActivity : Activity() {
     private var showingA = true
     private lateinit var bottomShade: View
     private lateinit var clockBox: LinearLayout
+    private lateinit var sideBox: LinearLayout
+    private lateinit var duaView: TextView
+    private lateinit var weatherView: TextView
+    private var lastWeather = 0L
     private lateinit var clock: TextView
     private lateinit var date: TextView
     private lateinit var title: TextView
@@ -130,8 +134,21 @@ class HomeActivity : Activity() {
         date = text(19f, false).apply { alpha = 0.85f }
         clockBox.addView(clock)
         clockBox.addView(date)
-        root.addView(clockBox, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
+        root.addView(clockBox, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
             setMargins(dp(56), dp(32), dp(56), 0)
+        })
+
+        // right side (in Arabic): a short dua, and the weather under it
+        sideBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        duaView = text(19f, true).apply {
+            maxWidth = dp(460)
+            setLineSpacing(0f, 1.15f)
+        }
+        weatherView = text(30f, true).apply { setPadding(0, dp(8), 0, 0) }
+        sideBox.addView(duaView)
+        sideBox.addView(weatherView)
+        root.addView(sideBox, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
+            setMargins(dp(56), dp(36), dp(56), 0)
         })
 
         title = text(32f, true).apply { gravity = Gravity.CENTER }
@@ -149,9 +166,9 @@ class HomeActivity : Activity() {
             isFillViewport = false
             clipChildren = false
             clipToPadding = false
-            setPadding(dp(14), dp(12), dp(14), dp(8))
+            setPadding(dp(10), dp(8), dp(10), dp(6))
             background = GradientDrawable().apply {
-                cornerRadius = dp(30).toFloat()
+                cornerRadius = dp(24).toFloat()
                 setColor(Color.parseColor("#4D101418"))
                 setStroke(dp(1), Color.parseColor("#33FFFFFF"))
             }
@@ -161,7 +178,7 @@ class HomeActivity : Activity() {
             clipChildren = false
             clipToPadding = false
             // room above the icons so the focused (bigger) one isn't cut off
-            setPadding(0, dp(18), 0, dp(4))
+            setPadding(0, dp(2), 0, 0)
         }
         scroller.addView(row)
         dockWrap.addView(scroller, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL))
@@ -184,6 +201,10 @@ class HomeActivity : Activity() {
         title.text = Store.title
         title.visibility = if (Store.title.isBlank()) View.GONE else View.VISIBLE
         clockBox.visibility = if (Store.showClock) View.VISIBLE else View.GONE
+        duaView.visibility = if (Store.showDua) View.VISIBLE else View.GONE
+        if (Store.showDua && duaView.text.isNullOrEmpty()) duaView.text = Duas.next()
+        weatherView.visibility = if (Store.showWeather && weatherView.text.isNotEmpty()) View.VISIBLE else View.GONE
+        if (Store.showWeather) loadWeather()
         updateClock()
         buildRow()
         val names = Store.images().map { it.name }
@@ -233,7 +254,7 @@ class HomeActivity : Activity() {
 
     /** One app: a rounded-square icon with its name under it. [sysIcon] draws a white glyph on a coloured square. */
     private fun tile(key: String, label: String, icon: Drawable?, sysIcon: Int?, onClick: () -> Unit): View {
-        val size = dp(64)
+        val size = dp(56)
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -241,12 +262,12 @@ class HomeActivity : Activity() {
             isClickable = true
             clipChildren = false
             setPadding(dp(6), dp(4), dp(6), dp(4))
-            layoutParams = LinearLayout.LayoutParams(dp(92), -2)
+            layoutParams = LinearLayout.LayoutParams(dp(80), -2)
         }
         val iconView = ImageView(this).apply {
             outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(v: View, o: android.graphics.Outline) {
-                    o.setRoundRect(0, 0, v.width, v.height, dp(16).toFloat())
+                    o.setRoundRect(0, 0, v.width, v.height, dp(14).toFloat())
                 }
             }
             clipToOutline = true
@@ -254,7 +275,7 @@ class HomeActivity : Activity() {
                 setImageResource(sysIcon)
                 setColorFilter(Color.WHITE)
                 scaleType = ImageView.ScaleType.CENTER_INSIDE
-                setPadding(dp(14), dp(14), dp(14), dp(14))
+                setPadding(dp(12), dp(12), dp(12), dp(12))
                 background = GradientDrawable(
                     GradientDrawable.Orientation.TL_BR,
                     intArrayOf(Color.parseColor("#FF5A4F"), Color.parseColor("#FF8A5B"))
@@ -283,11 +304,10 @@ class HomeActivity : Activity() {
 
         box.setOnFocusChangeListener { _, has ->
             ring.background = if (has) GradientDrawable().apply {
-                cornerRadius = dp(19).toFloat()
-                setStroke(dp(3), Color.WHITE)
+                cornerRadius = dp(17).toFloat()
+                setStroke(dp(2), Color.WHITE)
             } else null
-            ring.animate().scaleX(if (has) 1.08f else 1f).scaleY(if (has) 1.08f else 1f)
-                .setDuration(160).start()
+
             name.alpha = if (has) 1f else 0.75f
             name.typeface = if (has) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             if (has) {
@@ -365,7 +385,28 @@ class HomeActivity : Activity() {
         }
     }
 
+    private fun loadWeather(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastWeather < 30 * 60 * 1000L) return
+        lastWeather = now
+        thread {
+            val w = Weather.fetch()
+            runOnUiThread {
+                if (w == null) { lastWeather = 0L; return@runOnUiThread } // try again next time
+                weatherView.text = "${w.icon} ${w.temp}°  ${w.desc}"
+                weatherView.visibility = if (Store.showWeather) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
     private fun showBg(pic: Bitmap) {
+        if (Store.showDua) {
+            duaView.animate().alpha(0f).setDuration(500).withEndAction {
+                duaView.text = Duas.next()
+                duaView.animate().alpha(1f).setDuration(700).start()
+            }.start()
+        }
+        if (Store.showWeather) loadWeather()
         val inV = if (showingA) bgB else bgA
         val outV = if (showingA) bgA else bgB
         showingA = !showingA
