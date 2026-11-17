@@ -114,6 +114,10 @@ object Api {
                     if (o.has("home")) Store.homeMode = o.getBoolean("home")
                     if (o.has("weather")) Store.showWeather = o.getBoolean("weather")
                     if (o.has("dua")) Store.showDua = o.getBoolean("dua")
+                    if (o.has("date")) Store.showDate = o.getBoolean("date")
+                    o.optJSONObject("sizes")?.let { sz ->
+                        Store.sizeKeys.forEach { k -> if (sz.has(k)) Store.setSize(k, sz.getInt(k)) }
+                    }
                     Store.changed()
                 }
                 json(
@@ -124,6 +128,8 @@ object Api {
                         .put("home", Store.homeMode)
                         .put("weather", Store.showWeather)
                         .put("dua", Store.showDua)
+                        .put("date", Store.showDate)
+                        .put("sizes", JSONObject().also { sz -> Store.sizeKeys.forEach { k -> sz.put(k, Store.size(k)) } })
                         .put("remote", RemoteAccessibilityService.instance != null)
                 )
             }

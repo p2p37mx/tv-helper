@@ -28,6 +28,13 @@ object Remote {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 return try { Api.launchCtx(ctx).startActivity(i); true } catch (e: Exception) { false }
             }
+            "dreamsettings" -> {
+                val c = Api.launchCtx(ctx)
+                for (a in listOf(android.provider.Settings.ACTION_DREAM_SETTINGS, android.provider.Settings.ACTION_DISPLAY_SETTINGS, android.provider.Settings.ACTION_SETTINGS)) {
+                    try { c.startActivity(Intent(a).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true } catch (_: Exception) {}
+                }
+                return false
+            }
             "settings" -> {
                 val i = Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 return try { Api.launchCtx(ctx).startActivity(i); true } catch (e: Exception) { false }

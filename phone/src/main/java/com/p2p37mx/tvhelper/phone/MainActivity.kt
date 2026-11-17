@@ -365,7 +365,7 @@ class MainActivity : Activity() {
             addView(key("◀", "left")); addView(key("OK", "ok", CORAL, "#FFFFFF")); addView(key("▶", "right"))
         })
         grid.addView(LinearLayout(this).apply { addView(spacer()); addView(key("▼", "down")); addView(spacer()) })
-        pad.addView(grid)
+        pad.addView(grid, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.CENTER_HORIZONTAL })
         col.addView(pad)
         col.addView(gap(14))
 
@@ -570,8 +570,18 @@ class MainActivity : Activity() {
 
     private fun renderApps() {
         val list = appsList ?: return
+        // shown apps on top (in their order), switched-off ones at the bottom
+        val shown = apps.filter { !it.hidden }
+        val off = apps.filter { it.hidden }
+        apps.clear(); apps.addAll(shown); apps.addAll(off)
         list.removeAllViews()
+        if (off.isNotEmpty() && shown.isEmpty()) list.addView(label("كل التطبيقات مطفية", 13f, "#777B88"))
         apps.forEachIndexed { idx, app ->
+            if (app.hidden && (idx == 0 || !apps[idx - 1].hidden)) {
+                list.addView(gap(6))
+                list.addView(label("مطفية (ما تطلع بالشاشة):", 14f, "#777B88", true))
+                list.addView(gap(6))
+            }
             val row = card().apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -606,7 +616,7 @@ class MainActivity : Activity() {
                 isChecked = !app.hidden
                 setOnCheckedChangeListener { _, on ->
                     app.hidden = !on
-                    row.alpha = if (app.hidden) 0.5f else 1f
+                    list.post { renderApps() }
                 }
             })
             list.addView(row)
@@ -617,6 +627,7 @@ class MainActivity : Activity() {
     private fun move(idx: Int, d: Int) {
         val to = idx + d
         if (to < 0 || to >= apps.size) return
+        if (apps[to].hidden != apps[idx].hidden) return // stay inside your group
         val tmp = apps[idx]
         apps[idx] = apps[to]
         apps[to] = tmp
@@ -647,17 +658,12 @@ class MainActivity : Activity() {
         val interval = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER }
         box.addView(interval)
         box.addView(gap(8))
-        val clock = Switch(this).apply { text = "إظهار الساعة والتاريخ"; textSize = 15f }
-        box.addView(clock)
-        box.addView(gap(8))
-        val weather = Switch(this).apply { text = "إظهار حالة الطقس (الموصل)"; textSize = 15f }
-        box.addView(weather)
-        box.addView(gap(8))
-        val dua = Switch(this).apply { text = "إظهار الأدعية (تتغير ويه كل صورة)"; textSize = 15f }
-        box.addView(dua)
-        box.addView(gap(10))
-        val home = Switch(this).apply { text = "واجهتي هي الأساسية (بعد التشغيل وزر الرئيسية)"; textSize = 15f }
-        box.addView(home)
+        fun sw(t: String) = Switch(this).apply { text = t; textSize = 15f }.also { box.addView(it); box.addView(gap(8)) }
+        val clock = sw("إظهار الساعة")
+        val date = sw("إظهار التاريخ")
+        val weather = sw("إظهار حالة الطقس (الموصل)")
+        val dua = sw("إظهار الأدعية (تتغير ويه كل صورة)")
+        val home = sw("واجهتي هي الأساسية (بعد التشغيل وزر الرئيسية)")
         val homeNote = label("", 12f, "#C0392B")
         box.addView(homeNote)
         box.addView(gap(12))
@@ -666,6 +672,7 @@ class MainActivity : Activity() {
                 .put("title", title.text.toString())
                 .put("interval", interval.text.toString().toIntOrNull() ?: 15)
                 .put("clock", clock.isChecked)
+                .put("date", date.isChecked)
                 .put("home", home.isChecked)
                 .put("weather", weather.isChecked)
                 .put("dua", dua.isChecked)
@@ -674,6 +681,78 @@ class MainActivity : Activity() {
             }
         })
         col.addView(box)
+        col.addView(gap(16))
+
+        // ---- sizes, with a small model of the TV screen under the sliders
+        val sizes = linkedMapOf("clock" to 100, "date" to 100, "weather" to 100, "dua" to 100, "title" to 100, "dock" to 100)
+        val names = mapOf("clock" to "الساعة", "date" to "التاريخ", "weather" to "الطقس", "dua" to "الأدعية", "title" to "العنوان", "dock" to "التطبيقات")
+        val sizeBox = card()
+        sizeBox.addView(label("الأحجام", 17f, bold = true))
+        sizeBox.addView(label("حرّك المؤشر وشوف النموذج تحت. من تشيل إصبعك يتطبق على الشاشة مباشرة.", 13f, "#777B88"))
+        sizeBox.addView(gap(8))
+        val preview = Preview()
+        val bars = HashMap<String, android.widget.SeekBar>()
+        val pushSizes = {
+            val sz = JSONObject(); sizes.forEach { (k, v) -> sz.put(k, v) }
+            Net.async({ Net.postJson("/settings", JSONObject().put("sizes", sz)) }) { _, _ -> }
+        }
+        for ((key, _) in sizes) {
+            val lbl = label("", 14f)
+            sizeBox.addView(lbl)
+            val bar = android.widget.SeekBar(this).apply {
+                max = 210 // 40% … 250%
+                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(sb: android.widget.SeekBar, p: Int, fromUser: Boolean) {
+                        sizes[key] = p + 40
+                        lbl.text = "${names[key]}: ${p + 40}%"
+                        preview.update(sizes, title.text.toString(), clock.isChecked, date.isChecked, weather.isChecked, dua.isChecked)
+                    }
+                    override fun onStartTrackingTouch(sb: android.widget.SeekBar) {}
+                    override fun onStopTrackingTouch(sb: android.widget.SeekBar) { pushSizes() }
+                })
+                progress = 60
+            }
+            lbl.text = "${names[key]}: 100%"
+            bars[key] = bar
+            sizeBox.addView(bar)
+            sizeBox.addView(gap(4))
+        }
+        sizeBox.addView(gap(6))
+        sizeBox.addView(label("النموذج:", 13f, "#777B88", true))
+        sizeBox.addView(gap(4))
+        sizeBox.addView(preview.view)
+        sizeBox.addView(gap(10))
+        sizeBox.addView(button("↺  رجّع كل الأحجام طبيعية", "#F1F2F6", INK, 14f) {
+            bars.values.forEach { it.progress = 60 }
+            pushSizes()
+        })
+        col.addView(sizeBox)
+        col.addView(gap(16))
+        val refreshPreview = { preview.update(sizes, title.text.toString(), clock.isChecked, date.isChecked, weather.isChecked, dua.isChecked) }
+        listOf(clock, date, weather, dua).forEach { it.setOnCheckedChangeListener { _, _ -> refreshPreview() } }
+        title.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+            override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+            override fun afterTextChanged(e: android.text.Editable?) { refreshPreview() }
+        })
+        // the first photo as the model's background
+        Net.async({
+            val arr = Net.getArray("/images")
+            if (arr.length() == 0) null else Net.get("/image?thumb=1&name=" + Net.enc(arr.getString(0)))
+                .let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+        }) { b, _ -> if (b != null) preview.setPhoto(b) }
+
+        // ---- screensaver
+        val dream = card()
+        dream.addView(label("شاشة الاستراحة (التوقف)", 17f, bold = true))
+        dream.addView(gap(6))
+        dream.addView(label("حتى بدل شاشة الاستراحة الحالية تطلع صورك وهي تتقلب، ويه الساعة والطقس والأدعية:\n" +
+            "1. اضغط الزر تحت، تنفتح إعدادات شاشة التوقف بالشاشة.\n" +
+            "2. اختار «شاشة التوقف» ← «صور مساعد الشاشة».\n" +
+            "3. إذا ما لكيت الزر يفتحها، روح يدوي: الإعدادات ← تفضيلات الجهاز ← شاشة التوقف.", 14f))
+        dream.addView(gap(10))
+        dream.addView(button("افتح إعدادات شاشة التوقف بالشاشة", "#FFF1EF", CORAL, 15f) { sendKey("dreamsettings") })
+        col.addView(dream)
         col.addView(gap(16))
 
         val help = card()
@@ -708,11 +787,94 @@ class MainActivity : Activity() {
             title.setText(s.optString("title"))
             interval.setText(s.optInt("interval", 15).toString())
             clock.isChecked = s.optBoolean("clock", true)
+            date.isChecked = s.optBoolean("date", true)
+            s.optJSONObject("sizes")?.let { sz ->
+                sizes.keys.forEach { k -> bars[k]?.progress = sz.optInt(k, 100) - 40 }
+            }
+            refreshPreview()
             home.isChecked = s.optBoolean("home", true)
             weather.isChecked = s.optBoolean("weather", true)
             dua.isChecked = s.optBoolean("dua", true)
             homeNote.text = if (s.optBoolean("remote", true)) "" else
                 "⚠️ هاي تحتاج تفعيل «مساعد الشاشة - الريموت» من إمكانية الوصول بالشاشة"
+        }
+    }
+
+    /** A small model of the TV screen, drawn with the same proportions as the real one. */
+    private inner class Preview {
+        val view = FrameLayout(this@MainActivity)
+        private val photo = ImageView(this@MainActivity).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+        private val clockT = tv(true)
+        private val dateT = tv(false)
+        private val duaT = tv(true)
+        private val weatherT = tv(true)
+        private val titleT = tv(true).apply { gravity = Gravity.CENTER }
+        private val dock = LinearLayout(this@MainActivity).apply { gravity = Gravity.CENTER_VERTICAL }
+        private var last: (() -> Unit)? = null
+
+        init {
+            val w = resources.displayMetrics.widthPixels - dp(64)
+            view.layoutParams = LinearLayout.LayoutParams(w, w * 9 / 16)
+            view.background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(c("#141824"), c("#2A1830"), c("#3B1E22"))).apply { cornerRadius = dp(10).toFloat() }
+            view.clipToOutline = true
+            view.addView(photo, FrameLayout.LayoutParams(-1, -1))
+            view.addView(View(this@MainActivity).apply { setBackgroundColor(c("#33000000")) }, FrameLayout.LayoutParams(-1, -1))
+            view.addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL; addView(clockT); addView(dateT)
+            }, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END))
+            view.addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL; addView(duaT); addView(weatherT)
+            }, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START))
+            view.addView(titleT, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL))
+            view.addView(dock, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+            duaT.text = "رب اشرح لي صدري ويسر لي أمري"
+            weatherT.text = "☀️ 18°  صافي"
+            clockT.text = "10:26"
+            dateT.text = "الأربعاء، 18 نوفمبر"
+        }
+
+        private fun tv(bold: Boolean) = TextView(this@MainActivity).apply {
+            setTextColor(Color.WHITE)
+            if (bold) typeface = Typeface.DEFAULT_BOLD
+            setShadowLayer(4f, 0f, 1f, c("#AA000000"))
+        }
+
+        fun setPhoto(b: Bitmap) { photo.setImageBitmap(b) }
+
+        fun update(sz: Map<String, Int>, title: String, clock: Boolean, date: Boolean, weather: Boolean, dua: Boolean) {
+            val u = view.layoutParams.width / 960f // one "TV dp" in phone pixels
+            fun px(v: Float, k: String) = v * u * (sz[k] ?: 100) / 100f
+            val unit = android.util.TypedValue.COMPLEX_UNIT_PX
+            clockT.setTextSize(unit, px(60f, "clock")); clockT.visibility = if (clock) View.VISIBLE else View.GONE
+            dateT.setTextSize(unit, px(19f, "date")); dateT.visibility = if (date) View.VISIBLE else View.GONE
+            duaT.setTextSize(unit, px(19f, "dua")); duaT.visibility = if (dua) View.VISIBLE else View.GONE
+            duaT.maxWidth = px(460f, "dua").toInt()
+            weatherT.setTextSize(unit, px(30f, "weather")); weatherT.visibility = if (weather) View.VISIBLE else View.GONE
+            titleT.setTextSize(unit, px(32f, "title"))
+            titleT.text = title; titleT.visibility = if (title.isBlank()) View.GONE else View.VISIBLE
+            (clockT.parent as View).layoutParams = (clockT.parent as View).layoutParams.also {
+                (it as FrameLayout.LayoutParams).setMargins((56 * u).toInt(), (32 * u).toInt(), (56 * u).toInt(), 0)
+            }
+            (duaT.parent as View).layoutParams = (duaT.parent as View).layoutParams.also {
+                (it as FrameLayout.LayoutParams).setMargins((56 * u).toInt(), (36 * u).toInt(), (56 * u).toInt(), 0)
+            }
+            (titleT.layoutParams as FrameLayout.LayoutParams).topMargin = (48 * u).toInt()
+            // dock: 5 sample icons
+            dock.removeAllViews()
+            val icon = px(56f, "dock").toInt().coerceAtLeast(4)
+            val tileW = px(80f, "dock").toInt().coerceAtLeast(6)
+            val colors = listOf("#FF0000", "#E50914", "#1DB954", "#FF5A4F", "#FF8A5B")
+            colors.forEach { col ->
+                dock.addView(View(this@MainActivity).apply {
+                    background = GradientDrawable().apply { cornerRadius = icon * 0.25f; setColor(c(col)) }
+                }, LinearLayout.LayoutParams(icon, icon).apply {
+                    val m = (tileW - icon) / 2; setMargins(m, (10 * u).toInt(), m, (24 * u).toInt())
+                })
+            }
+            dock.background = GradientDrawable().apply { cornerRadius = 24 * u; setColor(c("#4D101418")) }
+            (dock.layoutParams as FrameLayout.LayoutParams).bottomMargin = (28 * u).toInt()
+            view.requestLayout()
         }
     }
 }

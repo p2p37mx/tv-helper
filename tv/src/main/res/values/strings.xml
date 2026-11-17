@@ -3,4 +3,5 @@
     <string name="app_name">مساعد الشاشة</string>
     <string name="acc_label">مساعد الشاشة - الريموت</string>
     <string name="acc_desc">يخلي تطبيق التلفون يتحكم بالشاشة: رجوع، الرئيسية، الأسهم، موافق، وفتح التطبيقات.</string>
+    <string name="dream_label">صور مساعد الشاشة</string>
 </resources>

@@ -54,6 +54,15 @@ object Store {
     @Volatile
     var suppressUntil = 0L
 
+    var showDate: Boolean
+        get() = prefs.getBoolean("date", true)
+        set(v) = prefs.edit().putBoolean("date", v).apply()
+
+    /** Size of a screen element in percent (100 = normal): clock, date, weather, dua, title, dock. */
+    val sizeKeys = listOf("clock", "date", "weather", "dua", "title", "dock")
+    fun size(key: String): Int = prefs.getInt("size_$key", 100).coerceIn(40, 250)
+    fun setSize(key: String, v: Int) = prefs.edit().putInt("size_$key", v.coerceIn(40, 250)).apply()
+
     var showWeather: Boolean
         get() = prefs.getBoolean("weather", true)
         set(v) = prefs.edit().putBoolean("weather", v).apply()
