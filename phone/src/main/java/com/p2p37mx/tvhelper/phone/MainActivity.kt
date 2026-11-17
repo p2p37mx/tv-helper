@@ -324,12 +324,20 @@ class MainActivity : Activity() {
     private fun remotePage() {
         val col = page()
 
+        // check again every time this page opens, so the warning goes away once it's turned on
+        val warnHolder = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(warnHolder)
+        Net.async({ Net.getJson("/info").optBoolean("remote") }) { on, _ ->
+            if (on == null) return@async
+            remoteReady = on
+            if (on) warnHolder.removeAllViews()
+        }
         if (!remoteReady) {
             val warn = card().apply { background = rounded("#FFF4E5", 18) }
             warn.addView(label("⚠️ الأسهم وموافق والرجوع تحتاج تفعيل مرة وحدة بالشاشة:", 14f, "#8A5300", true))
             warn.addView(label("الإعدادات ← تفضيلات الجهاز ← إمكانية الوصول ← «مساعد الشاشة - الريموت» ← تشغيل.\nالصوت وفتح التطبيقات يشتغلون بدون تفعيل.", 13f, "#8A5300"))
-            col.addView(warn)
-            col.addView(gap(14))
+            warnHolder.addView(warn)
+            warnHolder.addView(gap(14))
         }
 
         val pad = card().apply { gravity = Gravity.CENTER_HORIZONTAL }

@@ -5,7 +5,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
-import android.graphics.PointF
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -107,8 +106,8 @@ class HomeActivity : Activity() {
             intArrayOf(Color.parseColor("#141824"), Color.parseColor("#2A1830"), Color.parseColor("#3B1E22"))
         )
 
-        bgA = ImageView(this).apply { scaleType = ImageView.ScaleType.MATRIX; alpha = 0f }
-        bgB = ImageView(this).apply { scaleType = ImageView.ScaleType.MATRIX; alpha = 0f }
+        bgA = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0f }
+        bgB = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0f }
         root.addView(bgA, FrameLayout.LayoutParams(-1, -1))
         root.addView(bgB, FrameLayout.LayoutParams(-1, -1))
 
@@ -351,20 +350,20 @@ class HomeActivity : Activity() {
         thread {
             try {
                 val bmp = decodeScaled(f, w) ?: return@thread
-                val focus = FaceCrop.focus(f.name, bmp.width, bmp.height)
-                runOnUiThread { try { showBg(bmp, focus) } catch (_: Throwable) {} }
+                val vw = root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+                val vh = root.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+                val pic = FaceCrop.compose(bmp, f.name, vw, vh)
+                bmp.recycle()
+                runOnUiThread { try { showBg(pic) } catch (_: Throwable) {} }
             } catch (_: Throwable) {}
         }
     }
 
-    private fun showBg(bmp: Bitmap, focus: PointF) {
+    private fun showBg(pic: Bitmap) {
         val inV = if (showingA) bgB else bgA
         val outV = if (showingA) bgA else bgB
         showingA = !showingA
-        val vw = root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
-        val vh = root.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
-        inV.setImageBitmap(bmp)
-        inV.imageMatrix = FaceCrop.matrix(bmp.width, bmp.height, vw, vh, focus)
+        inV.setImageBitmap(pic)
         inV.alpha = 0f
         inV.animate().alpha(1f).setDuration(1200).start()
         outV.animate().alpha(0f).setDuration(1200).start()

@@ -73,9 +73,13 @@ class ViewerActivity : Activity() {
             val bmp = try {
                 BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = s })
             } catch (e: Throwable) { null } ?: return@thread
+            val dm = resources.displayMetrics
+            val pic = try {
+                FaceCrop.compose(bmp, f.name, dm.widthPixels, dm.heightPixels, fitAlways = true)
+            } catch (e: Throwable) { bmp }
             runOnUiThread {
                 img.alpha = 0f
-                img.setImageBitmap(bmp)
+                img.setImageBitmap(pic)
                 img.animate().alpha(1f).setDuration(400).start()
             }
         }
