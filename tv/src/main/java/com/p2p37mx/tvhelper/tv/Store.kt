@@ -50,6 +50,10 @@ object Store {
     @Volatile
     var bypassOriginal = false
 
+    /** Right after we open an app, ignore the original launcher flashing by for a few seconds. */
+    @Volatile
+    var suppressUntil = 0L
+
     val imagesDir: File
         get() = File(ctx.filesDir, "images").apply { mkdirs() }
 

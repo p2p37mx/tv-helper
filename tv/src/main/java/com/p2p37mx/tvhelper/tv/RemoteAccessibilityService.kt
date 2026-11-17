@@ -37,6 +37,13 @@ class RemoteAccessibilityService : AccessibilityService() {
         }, 1500)
     }
 
+    private val checkHome = Runnable {
+        val fg = try { rootInActiveWindow?.packageName?.toString() } catch (e: Exception) { null }
+        if (fg != null && fg in homePkgs && Store.homeMode && !Store.bypassOriginal &&
+            System.currentTimeMillis() > Store.suppressUntil
+        ) openOurHome()
+    }
+
     /** The TV's original home screen apps (TCL launcher etc.), not ours. */
     private fun findHomePackages(): Set<String> {
         val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
@@ -85,8 +92,14 @@ class RemoteAccessibilityService : AccessibilityService() {
         if (pkg == packageName || pkg == "com.android.systemui") return
         if (homePkgs.isEmpty()) homePkgs = findHomePackages()
         if (pkg in homePkgs) {
-            if (Store.homeMode && !Store.bypassOriginal) openOurHome()
+            if (Store.homeMode && !Store.bypassOriginal && System.currentTimeMillis() > Store.suppressUntil) {
+                // wait a moment and make sure the original home screen is REALLY what's showing,
+                // not just passing by while an app opens
+                h.removeCallbacks(checkHome)
+                h.postDelayed(checkHome, 900)
+            }
         } else {
+            h.removeCallbacks(checkHome)
             // the user went into some app: next time Home goes back to our screen
             Store.bypassOriginal = false
         }
