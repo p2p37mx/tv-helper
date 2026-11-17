@@ -99,6 +99,12 @@ object Api {
 
             "/key" -> ok(Remote.key(ctx, r.q("k")))
 
+            "/crash" -> {
+                val f = File(ctx.filesDir, "crash.txt")
+                if (r.q("clear") == "1") f.delete()
+                json(JSONObject().put("crash", if (f.exists()) f.readText() else ""))
+            }
+
             "/settings" -> {
                 if (r.method == "POST" && r.body.isNotEmpty()) {
                     val o = JSONObject(String(r.body, Charsets.UTF_8))

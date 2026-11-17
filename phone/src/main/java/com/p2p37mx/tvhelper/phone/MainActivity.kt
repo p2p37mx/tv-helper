@@ -483,8 +483,8 @@ class MainActivity : Activity() {
             uris.forEachIndexed { i, uri ->
                 runOnUiThread { photoStatus?.text = "جاري الرفع ${i + 1} من ${uris.size} …" }
                 try {
-                    val bytes = compress(uri)
-                    val name = "img_${System.currentTimeMillis()}_$i.jpg"
+                    val (bytes, focus) = compress(uri)
+                    val name = "img_${System.currentTimeMillis()}_$i$focus.jpg"
                     Net.request("POST", "/upload?name=" + Net.enc(name), bytes, "image/jpeg")
                     ok++
                 } catch (_: Exception) {}
@@ -496,7 +496,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun compress(uri: Uri): ByteArray {
+    /** Returns the JPEG and a "_fX_Y" tag with where the faces are (0..1000), or "" if none. */
+    private fun compress(uri: Uri): Pair<ByteArray, String> {
         val src = ImageDecoder.createSource(contentResolver, uri)
         val bmp = ImageDecoder.decodeBitmap(src) { d, info, _ ->
             val w = info.size.width
@@ -505,10 +506,30 @@ class MainActivity : Activity() {
             if (scale < 1f) d.setTargetSize((w * scale).toInt().coerceAtLeast(1), (h * scale).toInt().coerceAtLeast(1))
             d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
         }
+        val focus = faceTag(bmp)
         val out = ByteArrayOutputStream()
         bmp.compress(Bitmap.CompressFormat.JPEG, 88, out)
         bmp.recycle()
-        return out.toByteArray()
+        return out.toByteArray() to focus
+    }
+
+    private fun faceTag(bmp: Bitmap): String = try {
+        val detector = com.google.mlkit.vision.face.FaceDetection.getClient(
+            com.google.mlkit.vision.face.FaceDetectorOptions.Builder()
+                .setPerformanceMode(com.google.mlkit.vision.face.FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+                .build()
+        )
+        val faces = com.google.android.gms.tasks.Tasks.await(
+            detector.process(com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0))
+        )
+        detector.close()
+        if (faces.isEmpty()) "" else {
+            val cx = faces.map { it.boundingBox.exactCenterX() }.average() / bmp.width
+            val cy = faces.map { it.boundingBox.exactCenterY() }.average() / bmp.height
+            "_f${(cx * 1000).toInt().coerceIn(0, 1000)}_${(cy * 1000).toInt().coerceIn(0, 1000)}"
+        }
+    } catch (e: Throwable) {
+        ""
     }
 
     // ---------------------------------------------------------------- apps
@@ -651,6 +672,20 @@ class MainActivity : Activity() {
             )
         )
         col.addView(help)
+
+        val crashBox = card().apply { visibility = View.GONE; background = rounded("#FDECEA", 18) }
+        col.addView(gap(16))
+        col.addView(crashBox)
+        Net.async({ Net.getJson("/crash").optString("crash") }) { cr, _ ->
+            if (cr.isNullOrBlank()) return@async
+            crashBox.visibility = View.VISIBLE
+            crashBox.addView(label("آخر خطأ صار بالشاشة (صوّره ودزه لـ Claude):", 14f, "#C0392B", true))
+            crashBox.addView(label(cr.take(1500), 11f, INK).apply { setTextIsSelectable(true) })
+            crashBox.addView(gap(8))
+            crashBox.addView(pill("مسح", "#FFFFFF", c("#C0392B")) {
+                Net.async({ Net.get("/crash?clear=1") }) { _, _ -> crashBox.visibility = View.GONE }
+            })
+        }
 
         Net.async({ Net.getJson("/settings") }) { s, _ ->
             if (s == null) return@async

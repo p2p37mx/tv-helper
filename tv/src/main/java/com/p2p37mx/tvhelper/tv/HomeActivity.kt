@@ -347,9 +347,11 @@ class HomeActivity : Activity() {
         val f = files[imgIndex]
         val w = resources.displayMetrics.widthPixels.coerceAtLeast(1280)
         thread {
-            val bmp = decodeScaled(f, w) ?: return@thread
-            val focus = FaceCrop.focus(bmp)
-            runOnUiThread { showBg(bmp, focus) }
+            try {
+                val bmp = decodeScaled(f, w) ?: return@thread
+                val focus = FaceCrop.focus(f.name, bmp.width, bmp.height)
+                runOnUiThread { try { showBg(bmp, focus) } catch (_: Throwable) {} }
+            } catch (_: Throwable) {}
         }
     }
 

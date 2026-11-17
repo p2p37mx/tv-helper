@@ -30,3 +30,8 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
+
+dependencies {
+    // finds faces in photos so the TV keeps them in view when cropping
+    implementation("com.google.mlkit:face-detection:16.1.7")
+}
