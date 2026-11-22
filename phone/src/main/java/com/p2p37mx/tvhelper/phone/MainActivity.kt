@@ -756,7 +756,7 @@ class MainActivity : Activity() {
             Net.async({
                 val r = Net.getJson("/yt/check")
                 val img = if (r.optBoolean("img")) Net.get("/yt/shot").let { BitmapFactory.decodeByteArray(it, 0, it.size) } else null
-                r.optString("info") to img
+                (r.optString("info") + "\n\n--- media ---\n" + r.optString("media")) to img
             }) { res, e ->
                 if (res == null) { toast("ما گدرت أوصل للشاشة"); return@async }
                 val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), 0) }
@@ -764,8 +764,15 @@ class MainActivity : Activity() {
                     box.addView(ImageView(this).apply { setImageBitmap(b); adjustViewBounds = true })
                     box.addView(label("الأصفر = مكان البحث، الأحمر = زر التخطي إذا انلكى", 11f, "#777B88"))
                 }
-                box.addView(label(res.first, 13f).apply { setTextIsSelectable(true) })
-                AlertDialog.Builder(this).setTitle("نتيجة الفحص").setView(box).setPositiveButton("تمام", null).show()
+                box.addView(label(res.first.take(1200), 12f).apply { setTextIsSelectable(true) })
+                val sv = ScrollView(this).apply { addView(box) }
+                AlertDialog.Builder(this).setTitle("نتيجة الفحص").setView(sv)
+                    .setPositiveButton("تمام", null)
+                    .setNeutralButton("📋 نسخ النتيجة") { _, _ ->
+                        val cm = getSystemService(android.content.ClipboardManager::class.java)
+                        cm?.setPrimaryClip(android.content.ClipData.newPlainText("فحص", res.first))
+                        toast("انتسخت، الصقها لـ Claude")
+                    }.show()
             }
         })
         yt.addView(gap(12))

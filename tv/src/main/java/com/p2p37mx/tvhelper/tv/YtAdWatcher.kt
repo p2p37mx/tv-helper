@@ -60,8 +60,22 @@ class YtAdWatcher(private val svc: AccessibilityService) {
                             hw.recycle()
                             val small = Bitmap.createScaledBitmap(soft, W, H, true)
                             soft.recycle()
-                            analyse(small)
-                            small.recycle()
+                            if (isBlack(small) && Adb.ready) {
+                                // protected screen (video apps): try ADB's screenshot instead
+                                small.recycle()
+                                val viaAdb = adbShot()
+                                if (viaAdb != null) {
+                                    source = if (isBlack(viaAdb)) "ADB (سودة هم)" else "ADB"
+                                    analyse(viaAdb); viaAdb.recycle()
+                                } else {
+                                    source = "سودة، و ADB فشل"
+                                    info = "الصورة طلعت سودة (الشاشة محمية) وتصوير ADB فشل"
+                                }
+                            } else {
+                                source = if (isBlack(small)) "إمكانية الوصول (سودة: الشاشة محمية)" else "إمكانية الوصول"
+                                analyse(small)
+                                small.recycle()
+                            }
                         } else info = "ما گدرت أقرا الصورة"
                     } catch (e: Throwable) {
                         info = "خطأ: $e"
@@ -85,6 +99,33 @@ class YtAdWatcher(private val svc: AccessibilityService) {
             onDone?.invoke()
         }
     }
+
+    @Volatile var source = ""
+        private set
+
+    private fun isBlack(b: Bitmap): Boolean {
+        var sum = 0L; var n = 0
+        var y = 0
+        while (y < b.height) {
+            var x = 0
+            while (x < b.width) {
+                val c = b.getPixel(x, y)
+                sum += (Color.red(c) + Color.green(c) + Color.blue(c)) / 3; n++
+                x += 16
+            }
+            y += 16
+        }
+        return n == 0 || sum / n < 6
+    }
+
+    private fun adbShot(): Bitmap? = try {
+        val png = Adb.screencap(svc) ?: null
+        if (png == null || png.isEmpty()) null else {
+            val o = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
+            val b = android.graphics.BitmapFactory.decodeByteArray(png, 0, png.size, o)
+            if (b == null) null else Bitmap.createScaledBitmap(b, W, H, true).also { if (it !== b) b.recycle() }
+        }
+    } catch (e: Throwable) { null }
 
     fun reset() {
         seenCount = 0; goneCount = 0; pressCount = 0
@@ -165,6 +206,7 @@ class YtAdWatcher(private val svc: AccessibilityService) {
             append(if (pill != null) "✅ لكيت زر التخطي" else "ما اكو زر تخطي")
             append(if (adActive) " • إعلان (الصوت مكتوم)" else "")
             if (pressed.isNotEmpty()) append(" • ضغطت: ").append(pressed)
+            append("\nالتصوير: ").append(source)
             append("\nADB: ").append(Adb.status)
         }
         if (was != adActive) RemoteAccessibilityService.instance?.onVisualAd(adActive)

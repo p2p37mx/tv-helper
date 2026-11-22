@@ -42,6 +42,22 @@ object Adb {
         }
     }
 
+    /** Runs a shell command and returns its text output ("" if not connected). Not on the main thread. */
+    fun shell(ctx: Context, cmd: String): String {
+        val d = connect(ctx) ?: return ""
+        return try { d.shell(cmd).output } catch (e: Throwable) { dadb = null; "خطأ: $e" }
+    }
+
+    /** Screenshot through ADB (PNG bytes), for when the normal one comes out black. */
+    fun screencap(ctx: Context): ByteArray? {
+        val d = connect(ctx) ?: return null
+        return try {
+            d.open("exec:screencap -p").use { it.source.readByteArray() }
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
     /** Presses a key like the real remote. Must not be called on the main thread. */
     fun key(ctx: Context, code: Int): Boolean {
         val d = connect(ctx) ?: return false

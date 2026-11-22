@@ -117,7 +117,19 @@ object Api {
                     try { svc.ytWatcher.tick { latch.countDown() } } catch (e: Throwable) { latch.countDown() }
                 }
                 latch.await(4, java.util.concurrent.TimeUnit.SECONDS)
-                json(JSONObject().put("info", svc.ytWatcher.info).put("img", svc.ytWatcher.debugJpeg != null))
+                // what the media player reports (helps to tell an ad from the video)
+                val media = if (Adb.ready) {
+                    val all = Adb.shell(ctx, "dumpsys media_session")
+                    val lines = all.lines()
+                    val out = StringBuilder()
+                    lines.forEachIndexed { i, l ->
+                        if (l.contains("youtube", true)) {
+                            for (j in i until minOf(lines.size, i + 25)) out.append(lines[j].trim()).append('\n')
+                        }
+                    }
+                    out.toString().take(3500)
+                } else "ADB مو متصل"
+                json(JSONObject().put("info", svc.ytWatcher.info).put("img", svc.ytWatcher.debugJpeg != null).put("media", media))
             }
 
             "/yt/shot" -> {
