@@ -28,10 +28,16 @@ jobs:
           set -o pipefail
           gradle --no-daemon :tv:assembleDebug :phone:assembleDebug 2>&1 | tee build.log
 
-      - name: Show build errors
+      - name: Save build log
         if: failure()
         run: |
-          { grep -E "^e: " build.log; grep -A6 "What went wrong" build.log; } | grep -v "^> Task" | head -9 | while IFS= read -r l; do echo "::error::$l"; done
+          grep -v "^> Task" build.log | tail -150 > ci-log.txt
+          git config user.name ci; git config user.email ci@example.com
+          git checkout --orphan ci-log
+          git rm -rfq --cached .
+          git add -f ci-log.txt
+          git commit -qm "build log"
+          git push -f origin ci-log
 
       - name: Rename APKs
         run: |
