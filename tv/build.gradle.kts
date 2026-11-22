@@ -29,9 +29,18 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+
+    packaging {
+        resources.excludes += listOf("META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/*.kotlin_module", "META-INF/versions/**")
+    }
 }
 
 dependencies {
     // ADB client so the app can press real remote keys on this TV (optional, needs ADB debugging on)
-    implementation("dev.mobile:dadb:1.2.7")
+    implementation("dev.mobile:dadb:1.2.7") {
+        exclude(group = "org.junit.jupiter")
+        exclude(group = "org.junit.platform")
+        exclude(group = "org.opentest4j")
+        exclude(group = "org.apiguardian")
+    }
 }
