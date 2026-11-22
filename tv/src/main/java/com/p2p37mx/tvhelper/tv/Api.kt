@@ -116,7 +116,7 @@ object Api {
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                     try { svc.ytWatcher.tick { latch.countDown() } } catch (e: Throwable) { latch.countDown() }
                 }
-                latch.await(4, java.util.concurrent.TimeUnit.SECONDS)
+                latch.await(9, java.util.concurrent.TimeUnit.SECONDS)
                 // what the media player reports (helps to tell an ad from the video)
                 val media = if (Adb.ready) {
                     val all = Adb.shell(ctx, "dumpsys media_session")
