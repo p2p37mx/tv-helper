@@ -1,0 +1,44 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+Unable to strip the following libraries, packaging them as they are: libface_detector_v2_jni.so.
+
+
+w: file:///home/runner/work/tv-helper/tv-helper/phone/src/main/java/com/p2p37mx/tvhelper/phone/MainActivity.kt:306:53 Parameter 'e' is never used, could be renamed to _
+w: file:///home/runner/work/tv-helper/tv-helper/phone/src/main/java/com/p2p37mx/tvhelper/phone/MainActivity.kt:437:55 Parameter 'e' is never used, could be renamed to _
+w: file:///home/runner/work/tv-helper/tv-helper/phone/src/main/java/com/p2p37mx/tvhelper/phone/MainActivity.kt:560:53 Parameter 'e' is never used, could be renamed to _
+w: file:///home/runner/work/tv-helper/tv-helper/phone/src/main/java/com/p2p37mx/tvhelper/phone/MainActivity.kt:606:88 Parameter 'e' is never used, could be renamed to _
+w: file:///home/runner/work/tv-helper/tv-helper/phone/src/main/java/com/p2p37mx/tvhelper/phone/MainActivity.kt:641:56 Parameter 'r' is never used, could be renamed to _
+w: file:///home/runner/work/tv-helper/tv-helper/phone/src/main/java/com/p2p37mx/tvhelper/phone/MainActivity.kt:760:23 Parameter 'e' is never used, could be renamed to _
+w: file:///home/runner/work/tv-helper/tv-helper/phone/src/main/java/com/p2p37mx/tvhelper/phone/MainActivity.kt:762:21 Name shadowed: box
+w: file:///home/runner/work/tv-helper/tv-helper/phone/src/main/java/com/p2p37mx/tvhelper/phone/MainActivity.kt:782:61 Parameter 'e' is never used, could be renamed to _
+
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run-1795383139541.json
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':tv:mergeDebugJavaResource'.
+> A failure occurred while executing com.android.build.gradle.internal.tasks.MergeJavaResWorkAction
+   > 9 files found with path 'META-INF/LICENSE.md' from inputs:
+      - /home/runner/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-console/1.7.2/f98888d66074f6c060054675ab8366885f077143/junit-platform-console-1.7.2.jar
+      - /home/runner/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-reporting/1.7.2/8c6521bce2744fbce1c12a2088e05e754911213/junit-platform-reporting-1.7.2.jar
+      - /home/runner/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-launcher/1.7.2/9bcb72e95d291c9ff45c3f8c0a054abc764b4205/junit-platform-launcher-1.7.2.jar
+      - /home/runner/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter/5.7.2/62faa742964a9d8dab8fdb4a0eab7b01441c171f/junit-jupiter-5.7.2.jar
+      - /home/runner/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-engine/5.7.2/9415680a889f00b8205a094c5c487bc69dc7077d/junit-jupiter-engine-5.7.2.jar
+      - /home/runner/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-engine/1.7.2/2573770b46b8a199ed5f6b0f96fb99e468bfe891/junit-platform-engine-1.7.2.jar
+      - /home/runner/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-params/5.7.2/685f832f8c54dd40100f646d61aca88ed9545421/junit-jupiter-params-5.7.2.jar
+      - /home/runner/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-api/5.7.2/f4b4079732a9c537983324cfa4e46655f21d2c56/junit-jupiter-api-5.7.2.jar
+      - /home/runner/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-commons/1.7.2/34adfea6c13fc4a996cf38cdad80800ce850d198/junit-platform-commons-1.7.2.jar
+     Adding a packaging block may help, please refer to
+     https://developer.android.com/reference/tools/gradle-api/8.5/com/android/build/api/dsl/Packaging
+     for more information
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 41s
+64 actionable tasks: 64 executed
