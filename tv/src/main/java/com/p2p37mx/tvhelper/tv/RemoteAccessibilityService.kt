@@ -108,9 +108,120 @@ class RemoteAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
+    // ------------------------------------------------------------ YouTube ads: mute, then press Skip
+
+    private val ytPackages = setOf(
+        "com.google.android.youtube.tv", "com.google.android.youtube.tvkids",
+        "com.google.android.youtube.tvmusic", "com.google.android.youtube",
+        "com.google.android.apps.youtube.music", "com.google.android.apps.youtube.kids"
+    )
+    private val skipRe = Regex("(تخط|تخطّ|\\bskip\\b)", RegexOption.IGNORE_CASE)
+    private val adRe = Regex(
+        "(^\\s*(ad|إعلان)\\b|sponsored|مموّ?ل|إعلان\\s*[·•:\\d]|\\bad\\s*[·•]|\\bad \\d+ of|زيارة المعلن|visit advertiser|الإعلان)",
+        RegexOption.IGNORE_CASE
+    )
+    private var ytMuted = false
+    private var inYoutube = false
+    private var lastScan = 0L
+    private var lastSkip = 0L
+    private val ytPoll: Runnable = object : Runnable {
+        override fun run() {
+            try { scanYoutube() } catch (_: Exception) {}
+            if (inYoutube) h.postDelayed(this, 700)
+        }
+    }
+
+    private fun walk(n: AccessibilityNodeInfo?, depth: Int, out: MutableList<AccessibilityNodeInfo>) {
+        if (n == null || depth > 40 || out.size > 800) return
+        out.add(n)
+        for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1, out)
+    }
+
+    private fun textOf(n: AccessibilityNodeInfo) =
+        listOfNotNull(n.text?.toString(), n.contentDescription?.toString()).joinToString(" ").trim()
+
+    private fun setMute(on: Boolean) {
+        val am = getSystemService(android.media.AudioManager::class.java) ?: return
+        am.adjustStreamVolume(
+            android.media.AudioManager.STREAM_MUSIC,
+            if (on) android.media.AudioManager.ADJUST_MUTE else android.media.AudioManager.ADJUST_UNMUTE, 0
+        )
+        ytMuted = on
+    }
+
+    private fun scanYoutube() {
+        lastScan = System.currentTimeMillis()
+        val root = rootInActiveWindow
+        val pkg = root?.packageName?.toString()
+        if (!Store.ytAdSkip || pkg == null || pkg !in ytPackages) {
+            if (pkg != null && pkg != packageName && pkg != "com.android.systemui") inYoutube = pkg in ytPackages
+            if (ytMuted && (pkg == null || pkg !in ytPackages || !Store.ytAdSkip)) setMute(false)
+            return
+        }
+        val nodes = ArrayList<AccessibilityNodeInfo>()
+        walk(root, 0, nodes)
+        var ad = false
+        var skip: AccessibilityNodeInfo? = null
+        for (n in nodes) {
+            val t = textOf(n)
+            if (t.isEmpty() || t.length > 80) continue
+            if (skip == null && skipRe.containsMatchIn(t)) skip = n
+            if (adRe.containsMatchIn(t)) ad = true
+        }
+        if (ad || skip != null) {
+            if (!ytMuted) setMute(true)
+        } else if (ytMuted) {
+            setMute(false)
+        }
+        val s = skip ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastSkip < 900) return
+        lastSkip = now
+        var n: AccessibilityNodeInfo? = s
+        while (n != null) {
+            if (n.isClickable && n.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return
+            n = n.parent
+        }
+        s.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        s.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    /** Text of everything on the screen right now, to see what an app shows (used from the phone). */
+    fun dump(): String {
+        val root = rootInActiveWindow ?: return "ما اكو شاشة مقروءة"
+        val nodes = ArrayList<AccessibilityNodeInfo>()
+        walk(root, 0, nodes)
+        val sb = StringBuilder("app: ${root.packageName}\n")
+        for (n in nodes) {
+            val t = textOf(n)
+            if (t.isEmpty() && !n.isClickable) continue
+            sb.append(n.className?.toString()?.substringAfterLast('.') ?: "?")
+            if (n.isClickable) sb.append(" [click]")
+            if (n.isFocused) sb.append(" [focus]")
+            sb.append(" : ").append(t.take(100)).append('\n')
+            if (sb.length > 12000) break
+        }
+        return sb.toString()
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        if (event == null) return
+        val evPkg = event.packageName?.toString()
+        if (evPkg != null && evPkg in ytPackages && Store.ytAdSkip) {
+            if (!inYoutube) {
+                inYoutube = true
+                h.removeCallbacks(ytPoll)
+                h.post(ytPoll)
+            } else if (System.currentTimeMillis() - lastScan > 250) {
+                try { scanYoutube() } catch (_: Exception) {}
+            }
+        }
+        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
+        if (pkg !in ytPackages && pkg != packageName && pkg != "com.android.systemui") {
+            inYoutube = false
+            if (ytMuted) setMute(false)
+        }
         if (pkg != packageName) Store.lastActivity = System.currentTimeMillis()
         if (pkg == packageName || pkg == "com.android.systemui") return
         if (homePkgs.isEmpty()) homePkgs = findHomePackages()

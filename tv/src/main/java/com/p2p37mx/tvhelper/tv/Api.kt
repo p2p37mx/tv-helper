@@ -99,6 +99,16 @@ object Api {
 
             "/key" -> { Store.lastActivity = System.currentTimeMillis(); ok(Remote.key(ctx, r.q("k"))) }
 
+            "/dump" -> json(JSONObject().put("text", RemoteAccessibilityService.instance?.let { svc ->
+                var t = ""
+                val latch = java.util.concurrent.CountDownLatch(1)
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    try { t = svc.dump() } catch (e: Exception) { t = e.toString() } finally { latch.countDown() }
+                }
+                latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
+                t
+            } ?: "خدمة إمكانية الوصول مو مفعّلة"))
+
             "/saver" -> ok(start(launchCtx(ctx), Intent(ctx, SaverActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
 
             "/crash" -> {
@@ -118,6 +128,7 @@ object Api {
                     if (o.has("dua")) Store.showDua = o.getBoolean("dua")
                     if (o.has("date")) Store.showDate = o.getBoolean("date")
                     if (o.has("saver")) Store.saverMinutes = o.getInt("saver")
+                    if (o.has("ytAds")) Store.ytAdSkip = o.getBoolean("ytAds")
                     o.optJSONObject("sizes")?.let { sz ->
                         Store.sizeKeys.forEach { k -> if (sz.has(k)) Store.setSize(k, sz.getInt(k)) }
                     }
@@ -133,6 +144,7 @@ object Api {
                         .put("dua", Store.showDua)
                         .put("date", Store.showDate)
                         .put("saver", Store.saverMinutes)
+                        .put("ytAds", Store.ytAdSkip)
                         .put("sizes", JSONObject().also { sz -> Store.sizeKeys.forEach { k -> sz.put(k, Store.size(k)) } })
                         .put("remote", RemoteAccessibilityService.instance != null)
                 )

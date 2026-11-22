@@ -72,6 +72,11 @@ object Store {
     @Volatile
     var lastActivity = System.currentTimeMillis()
 
+    /** Mute YouTube ads and press Skip as soon as it shows. */
+    var ytAdSkip: Boolean
+        get() = prefs.getBoolean("ytAdSkip", true)
+        set(v) = prefs.edit().putBoolean("ytAdSkip", v).apply()
+
     var showWeather: Boolean
         get() = prefs.getBoolean("weather", true)
         set(v) = prefs.edit().putBoolean("weather", v).apply()

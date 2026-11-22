@@ -742,6 +742,30 @@ class MainActivity : Activity() {
                 .let { BitmapFactory.decodeByteArray(it, 0, it.size) }
         }) { b, _ -> if (b != null) preview.setPhoto(b) }
 
+        // ---- YouTube ads
+        val yt = card()
+        yt.addView(label("إعلانات يوتيوب", 17f, bold = true))
+        yt.addView(gap(6))
+        yt.addView(label("من يطلع إعلان بيوتيوب على الشاشة: ينكتم الصوت، وأول ما يطلع زر «تخطي» ينضغط وحده ويرجع الفيديو ويرجع الصوت. يحتاج إمكانية الوصول مفعّلة.", 14f))
+        yt.addView(gap(8))
+        val ytSw = Switch(this).apply { text = "كتم وتخطي الإعلانات تلقائياً"; textSize = 15f }
+        yt.addView(ytSw)
+        yt.addView(gap(8))
+        yt.addView(button("🔍 فحص الشاشة الحالية", "#F1F2F6", INK, 14f) {
+            Net.async({ Net.getJson("/dump").optString("text") }) { t, e ->
+                if (t == null) { toast("ما گدرت أوصل للشاشة"); return@async }
+                AlertDialog.Builder(this)
+                    .setTitle("الكلام اللي على الشاشة")
+                    .setMessage(t)
+                    .setPositiveButton("تمام", null)
+                    .show()
+                    .findViewById<TextView>(android.R.id.message)?.apply { setTextIsSelectable(true); textSize = 11f }
+            }
+        })
+        yt.addView(label("إذا الإعلان ما يتخطى: شغّل فيديو، ووقت ما يطلع الإعلان اضغط «فحص الشاشة» وصوّر اللي يطلع ودزه لـ Claude.", 12f, "#777B88"))
+        col.addView(yt)
+        col.addView(gap(16))
+
         // ---- screensaver (our own: shows after some minutes without the remote)
         val dream = card()
         dream.addView(label("شاشة الاستراحة", 17f, bold = true))
@@ -802,6 +826,12 @@ class MainActivity : Activity() {
             clock.isChecked = s.optBoolean("clock", true)
             date.isChecked = s.optBoolean("date", true)
             saverMin.setText(s.optInt("saver", 5).toString())
+            ytSw.isChecked = s.optBoolean("ytAds", true)
+            ytSw.setOnCheckedChangeListener { _, on ->
+                Net.async({ Net.postJson("/settings", JSONObject().put("ytAds", on)) }) { _, e ->
+                    toast(if (e == null) (if (on) "✅ تخطي الإعلانات شغال" else "انطفى تخطي الإعلانات") else "ما انحفظ")
+                }
+            }
             s.optJSONObject("sizes")?.let { sz ->
                 sizes.keys.forEach { k -> bars[k]?.progress = sz.optInt(k, 100) - 40 }
             }
