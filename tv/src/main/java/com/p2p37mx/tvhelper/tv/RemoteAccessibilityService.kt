@@ -124,10 +124,23 @@ class RemoteAccessibilityService : AccessibilityService() {
     private var inYoutube = false
     private var lastScan = 0L
     private var lastSkip = 0L
+    val ytWatcher by lazy { YtAdWatcher(this) }
+    private var visualAd = false
+
+    /** Called by the screenshot watcher when the Skip pill appears / goes away. */
+    fun onVisualAd(on: Boolean) {
+        h.post {
+            visualAd = on
+            if (on && !ytMuted && Store.ytAdSkip) setMute(true)
+            if (!on && ytMuted) setMute(false)
+        }
+    }
+
     private val ytPoll: Runnable = object : Runnable {
         override fun run() {
             try { scanYoutube() } catch (_: Exception) {}
-            if (inYoutube) h.postDelayed(this, 700)
+            if (inYoutube && Store.ytAdSkip) try { ytWatcher.tick() } catch (_: Throwable) {}
+            if (inYoutube) h.postDelayed(this, 700) else { ytWatcher.reset(); visualAd = false }
         }
     }
 
@@ -168,7 +181,7 @@ class RemoteAccessibilityService : AccessibilityService() {
             if (skip == null && skipRe.containsMatchIn(t)) skip = n
             if (adRe.containsMatchIn(t)) ad = true
         }
-        if (ad || skip != null) {
+        if (ad || skip != null || visualAd) {
             if (!ytMuted) setMute(true)
         } else if (ytMuted) {
             setMute(false)

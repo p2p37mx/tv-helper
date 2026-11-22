@@ -751,18 +751,39 @@ class MainActivity : Activity() {
         val ytSw = Switch(this).apply { text = "كتم وتخطي الإعلانات تلقائياً"; textSize = 15f }
         yt.addView(ytSw)
         yt.addView(gap(8))
-        yt.addView(button("🔍 فحص الشاشة الحالية", "#F1F2F6", INK, 14f) {
-            Net.async({ Net.getJson("/dump").optString("text") }) { t, e ->
-                if (t == null) { toast("ما گدرت أوصل للشاشة"); return@async }
-                AlertDialog.Builder(this)
-                    .setTitle("الكلام اللي على الشاشة")
-                    .setMessage(t)
-                    .setPositiveButton("تمام", null)
-                    .show()
-                    .findViewById<TextView>(android.R.id.message)?.apply { setTextIsSelectable(true); textSize = 11f }
+        yt.addView(button("🔍 فحص الشاشة هسه (وقت الإعلان)", "#F1F2F6", INK, 14f) {
+            toast("جاري التصوير…")
+            Net.async({
+                val r = Net.getJson("/yt/check")
+                val img = if (r.optBoolean("img")) Net.get("/yt/shot").let { BitmapFactory.decodeByteArray(it, 0, it.size) } else null
+                r.optString("info") to img
+            }) { res, e ->
+                if (res == null) { toast("ما گدرت أوصل للشاشة"); return@async }
+                val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), 0) }
+                res.second?.let { b ->
+                    box.addView(ImageView(this).apply { setImageBitmap(b); adjustViewBounds = true })
+                    box.addView(label("الأصفر = مكان البحث، الأحمر = زر التخطي إذا انلكى", 11f, "#777B88"))
+                }
+                box.addView(label(res.first, 13f).apply { setTextIsSelectable(true) })
+                AlertDialog.Builder(this).setTitle("نتيجة الفحص").setView(box).setPositiveButton("تمام", null).show()
             }
         })
-        yt.addView(label("إذا الإعلان ما يتخطى: شغّل فيديو، ووقت ما يطلع الإعلان اضغط «فحص الشاشة» وصوّر اللي يطلع ودزه لـ Claude.", 12f, "#777B88"))
+        yt.addView(gap(12))
+        yt.addView(label("الضغط على «التخطي»", 15f, bold = true))
+        yt.addView(label("يوتيوب ما يخلي أي تطبيق يضغط بداخله، إلا عن طريق ADB بالشاشة نفسها. تفعّله مرة وحدة:\n" +
+            "1. بالشاشة: الإعدادات ← النظام ← حول ← اضغط «إصدار نظام التشغيل» 7 مرات.\n" +
+            "2. ارجع ← النظام ← خيارات المطور ← شغّل «تصحيح أخطاء USB» (وإذا اكو «تصحيح الأخطاء عبر الشبكة» شغّله هم).\n" +
+            "3. اضغط الزر تحت. بالشاشة يطلع سؤال «السماح بتصحيح الأخطاء؟» ← علّم «السماح دائماً» ← موافق.\n" +
+            "بعدها يتخطى الإعلان وحده، وأسهم الريموت بالتلفون تشتغل بكل التطبيقات.", 13f))
+        yt.addView(gap(8))
+        val adbStatus = label("", 13f, "#777B88")
+        yt.addView(button("🔗 ربط ADB", "#FFF1EF", CORAL, 14f) {
+            adbStatus.text = "جاري الربط… إذا طلع سؤال على الشاشة وافق عليه"
+            Net.async({ Net.getJson("/adb/connect") }) { r, e ->
+                adbStatus.text = r?.optString("status") ?: "ما گدرت أوصل للشاشة"
+            }
+        })
+        yt.addView(adbStatus)
         col.addView(yt)
         col.addView(gap(16))
 

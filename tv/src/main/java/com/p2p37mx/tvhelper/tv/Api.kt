@@ -109,6 +109,27 @@ object Api {
                 t
             } ?: "خدمة إمكانية الوصول مو مفعّلة"))
 
+            "/yt/check" -> {
+                val svc = RemoteAccessibilityService.instance
+                    ?: return json(JSONObject().put("info", "خدمة إمكانية الوصول مو مفعّلة").put("img", false))
+                val latch = java.util.concurrent.CountDownLatch(1)
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    try { svc.ytWatcher.tick { latch.countDown() } } catch (e: Throwable) { latch.countDown() }
+                }
+                latch.await(4, java.util.concurrent.TimeUnit.SECONDS)
+                json(JSONObject().put("info", svc.ytWatcher.info).put("img", svc.ytWatcher.debugJpeg != null))
+            }
+
+            "/yt/shot" -> {
+                val img = RemoteAccessibilityService.instance?.ytWatcher?.debugJpeg ?: return error(404, "no image")
+                Res(200, "image/jpeg", img)
+            }
+
+            "/adb/connect" -> {
+                val d = Adb.connect(ctx, force = true)
+                json(JSONObject().put("ok", d != null).put("status", Adb.status))
+            }
+
             "/saver" -> ok(start(launchCtx(ctx), Intent(ctx, SaverActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
 
             "/crash" -> {

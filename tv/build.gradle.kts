@@ -30,3 +30,8 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
+
+dependencies {
+    // ADB client so the app can press real remote keys on this TV (optional, needs ADB debugging on)
+    implementation("dev.mobile:dadb:1.2.7")
+}

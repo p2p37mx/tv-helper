@@ -40,6 +40,9 @@ object Remote {
                 return try { Api.launchCtx(ctx).startActivity(i); true } catch (e: Exception) { false }
             }
         }
+        // with ADB connected, press real remote keys (works inside every app, YouTube included)
+        val code = mapOf("up" to 19, "down" to 20, "left" to 21, "right" to 22, "ok" to 23, "back" to 4)[k]
+        if (code != null && Adb.ready && Adb.key(ctx, code)) return true
         val s = RemoteAccessibilityService.instance ?: return false
         return onMain { s.handle(k) } ?: false
     }
