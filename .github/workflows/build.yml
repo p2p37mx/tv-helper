@@ -24,7 +24,14 @@ jobs:
           gradle-version: "8.7"
 
       - name: Build
-        run: gradle --no-daemon :tv:assembleDebug :phone:assembleDebug
+        run: |
+          set -o pipefail
+          gradle --no-daemon :tv:assembleDebug :phone:assembleDebug 2>&1 | tee build.log
+
+      - name: Show build errors
+        if: failure()
+        run: |
+          grep -E "^e: |What went wrong|Could not|error:|> " build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
 
       - name: Rename APKs
         run: |
