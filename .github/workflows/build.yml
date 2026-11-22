@@ -31,7 +31,7 @@ jobs:
       - name: Show build errors
         if: failure()
         run: |
-          grep -E "^e: |What went wrong|Could not|error:|> " build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+          { grep -E "^e: " build.log; grep -A6 "What went wrong" build.log; } | grep -v "^> Task" | head -9 | while IFS= read -r l; do echo "::error::$l"; done
 
       - name: Rename APKs
         run: |
